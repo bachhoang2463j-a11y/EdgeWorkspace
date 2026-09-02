@@ -16,7 +16,7 @@ public class MainForm : Form
     private bool _bridgeReady;
     private string _lastSignature = "";
 
-    private static readonly string WorkspacePath = "F:\\Workspace_Temp";
+    private static readonly string WorkspacePath = "D:\\Workspace_Temp";
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "bridge.log");
 

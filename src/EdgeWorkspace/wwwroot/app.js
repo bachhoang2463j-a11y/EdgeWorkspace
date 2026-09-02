@@ -1,5 +1,5 @@
 // EdgeWorkspace 前端逻辑
-// P1：接收 C# 推送的文件列表并渲染；分类 Tab 在 P2 接过滤。
+// P2：分类 Tab 过滤 + 计数徽章联动。
 
 const bridge = window.chrome?.webview ?? null;
 
@@ -9,7 +9,7 @@ function post(type, payload = {}) {
 }
 
 let allItems = [];      // 最新文件条目（C# 推送）
-let currentTab = 'all'; // P2 起生效
+let currentTab = 'all';
 
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
@@ -17,7 +17,7 @@ window.addEventListener('DOMContentLoaded', () => {
   post('ready');
 });
 
-// ---------- Tabs（P0 视图切换；P2 接过滤） ----------
+// ---------- Tabs（P2：过滤 + 计数） ----------
 function bindTabs() {
   document.querySelectorAll('.tab-item').forEach(tab => {
     tab.addEventListener('click', () => setTab(tab.dataset.tab));
@@ -30,7 +30,28 @@ function setTab(tab) {
   const isBoard = tab === 'whiteboard';
   document.getElementById('fileGrid').style.display = isBoard ? 'none' : 'grid';
   document.getElementById('noteWall').style.display = isBoard ? 'grid' : 'none';
-  if (!isBoard) renderGrid(); // 切回文件视图时按当前 Tab 重渲染
+  updateBadges();
+  if (!isBoard) renderGrid();
+}
+
+// Tab -> kind 匹配（口径见 SPEC §6）
+const TAB_KINDS = {
+  folder: ['folder'],
+  doc: ['doc'],
+  image: ['image'],
+  video: ['video'],
+};
+function matchesTab(it, tab) {
+  const kinds = TAB_KINDS[tab];
+  return kinds ? kinds.includes(it.kind) : true; // all
+}
+
+function updateBadges() {
+  // 头部徽章显示当前视图数量；白板视图显示工作区总数
+  const n = currentTab === 'whiteboard' || currentTab === 'all'
+    ? allItems.length
+    : allItems.filter(it => matchesTab(it, currentTab)).length;
+  document.getElementById('totalBadge').textContent = n + ' 项';
 }
 
 // ---------- Header buttons ----------
@@ -44,7 +65,7 @@ function bindButtons() {
   });
 }
 
-// ---------- 文件渲染（P1） ----------
+// ---------- 文件渲染 ----------
 const KIND_ICON = {
   folder: '📁', doc: '📄', image: '🖼️', video: '🎬',
   audio: '🎵', archive: '🗜️', app: '⚙️', other: '📄',
@@ -60,7 +81,7 @@ function fmtSize(bytes) {
 
 function renderGrid() {
   const grid = document.getElementById('fileGrid');
-  const items = currentTab === 'all' ? allItems : allItems.filter(it => kindOfTab(it) === currentTab);
+  const items = currentTab === 'all' ? allItems : allItems.filter(it => matchesTab(it, currentTab));
   const frag = document.createDocumentFragment();
 
   for (const it of items) {
@@ -70,12 +91,7 @@ function renderGrid() {
 
     const thumb = document.createElement('div');
     thumb.className = 'file-thumb-box';
-    if (it.kind === 'image') {
-      // 缩略图：虚拟主机无法访问任意盘符，先用 kind 图标；P4 接缩略图管道
-      thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
-    } else {
-      thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
-    }
+    thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
 
     const title = document.createElement('div');
     title.className = 'file-title';
@@ -89,17 +105,7 @@ function renderGrid() {
     frag.append(card);
   }
   grid.replaceChildren(frag);
-
-  document.getElementById('totalBadge').textContent = allItems.length + ' 项';
-}
-
-// Tab 名到条目 kind 的映射（P2 起由 setTab 驱动）
-function kindOfTab(it) {
-  if (currentTab === 'folder') return it.kind === 'folder';
-  if (currentTab === 'doc') return it.kind === 'doc';
-  if (currentTab === 'image') return it.kind === 'image';
-  if (currentTab === 'video') return it.kind === 'video';
-  return true;
+  updateBadges();
 }
 
 // ---------- 桥：C# -> JS ----------
@@ -110,8 +116,7 @@ bridge?.addEventListener('message', e => {
   switch (msg.type) {
     case 'files':
       allItems = msg.items || [];
-      document.getElementById('totalBadge').textContent = msg.total + ' 项';
-      renderGrid();
+      if (currentTab !== 'whiteboard') renderGrid(); else updateBadges();
       break;
   }
 });
