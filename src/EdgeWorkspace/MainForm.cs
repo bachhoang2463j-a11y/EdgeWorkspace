@@ -5,7 +5,7 @@ namespace EdgeWorkspace;
 
 /// <summary>
 /// 主面板窗口：右缘停靠、置顶、WebView2 UI 宿主。
-/// P1：文件扫描 + FSW 即时推送 + 轮询兜底（F: 卷不推送通知，见 WorkspaceWatcher 注释）。
+/// P3：贴边唤出 / 移开收起 / Ctrl+Shift+Z / 钉住 / 滑入滑出动画。
 /// </summary>
 public class MainForm : Form
 {
@@ -13,12 +13,25 @@ public class MainForm : Form
     private CoreWebView2? _core;
     private WorkspaceWatcher? _watcher;
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 1500 };
+    private readonly System.Windows.Forms.Timer _edgeWatch = new() { Interval = 100 };
+    private readonly System.Windows.Forms.Timer _closeDelay = new() { Interval = 600 };
+    private readonly System.Windows.Forms.Timer _anim = new() { Interval = 15 };
     private bool _bridgeReady;
+    private bool _pinned;
+    private bool _dragOver;      // P4 拖放期间挂起收起
+    private bool _menuOpen;      // 右键菜单打开期间挂起收起（P4）
     private string _lastSignature = "";
+    private DateTime _animStart;
+    private int _animFrom, _animTo;
+    private bool _animOpening;
+    private int _parkedX;        // 完全滑出屏幕的 X
 
     private static readonly string WorkspacePath = "D:\\Workspace_Temp";
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "bridge.log");
+
+    private const int SlideMs = 180;
+    private const int EdgeZone = 8;
 
     private static void Log(string line) =>
         File.AppendAllText(LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + line + Environment.NewLine);
@@ -33,11 +46,10 @@ public class MainForm : Form
         BackColor = Color.White;
         DoubleBuffered = true;
 
-        Deactivate += (_, _) => { /* P3: 收起判定 */ };
-
         Load += async (_, _) =>
         {
             DockRight();
+            _parkedX = Right; // 初始即停靠（P3 后启动隐藏，先保持可见便于联调）
             _web = new Microsoft.Web.WebView2.WinForms.WebView2
             {
                 Dock = DockStyle.Fill,
@@ -53,14 +65,146 @@ public class MainForm : Form
             var root = Path.Combine(AppContext.BaseDirectory, "wwwroot");
             _core.SetVirtualHostNameToFolderMapping(
                 "app.local", root, CoreWebView2HostResourceAccessKind.Allow);
-
             _core.WebMessageReceived += OnWebMessage;
             _core.Navigate("https://app.local/index.html");
 
             StartWatcher();
             _poll.Tick += (_, _) => PushFilesIfChanged();
             _poll.Start();
+
+            // P3: 唤出/收起
+            _edgeWatch.Tick += (_, _) => EdgeWatchTick();
+            _closeDelay.Tick += (_, _) => CloseDelayTick();
+            _anim.Tick += (_, _) => AnimTick();
+            _edgeWatch.Start();
+            Native.RegisterAppHotKey(Handle);
         };
+
+        // 移开判定（600ms 宽限）
+        MouseLeave += (_, _) => _closeDelay.Start();
+        MouseEnter += (_, _) => _closeDelay.Stop();
+
+        // 失焦判定（300ms 后复核：动画进行中则等动画结束再判）
+        Deactivate += (_, _) => BeginInvoke(async () =>
+        {
+            await Task.Delay(300);
+            if (_anim.Enabled) { _pendingCloseCheck = true; return; }
+            CheckShouldCollapse();
+        });
+
+        FormClosed += (_, _) => Native.UnregisterAppHotKey(Handle);
+    }
+
+    // ---------- P3: 唤出与收起 ----------
+
+    private bool _opening;
+    private bool _pendingCloseCheck;
+
+    private void CheckShouldCollapse()
+    {
+        if (_pinned || _dragOver || _menuOpen || !Visible || _opening) return;
+        var (x, y) = Native.Cursor();
+        if (!IsSelfAt(x, y)) BeginCollapse();
+    }
+
+    private void EdgeWatchTick()
+    {
+        if (_opening || Visible) return;
+        var (x, y) = Native.Cursor();
+        var wa = Screen.PrimaryScreen!.WorkingArea;
+        var atEdge = x >= wa.Right - EdgeZone && y > wa.Top && y < wa.Bottom;
+        if (!atEdge) return;
+        if (Native.IsForegroundFullScreen(Handle)) return;   // 全屏应用不打扰
+        if (!Native.IsDesktopAt(x, y) && !IsSelfAt(x, y)) return; // 窗口盖住右缘时不唤出
+
+        BeginExpand();
+        // 贴边唤出（鼠标）默认展示白板；拖放唤出时 P4 会切回全部
+        SetFrontTab("whiteboard");
+    }
+
+    private bool IsSelfAt(int x, int y) => Visible && x >= Left && x < Right && y >= Top && y < Bottom;
+
+    private void CloseDelayTick()
+    {
+        _closeDelay.Stop();
+        if (_pinned || _dragOver || _menuOpen || !Visible) return;
+        // 光标离开窗口且未回来
+        var (x, y) = Native.Cursor();
+        if (!IsSelfAt(x, y)) BeginCollapse();
+    }
+
+    private void BeginExpand()
+    {
+        _opening = true;
+        _closeDelay.Stop();
+        if (!Visible)
+        {
+            Visible = true;
+            Left = _parkedX;
+        }
+        StartAnim(_parkedX, _openX, opening: true);
+    }
+
+    private void BeginCollapse()
+    {
+        StartAnim(Left, _parkedX, opening: false);
+    }
+
+    private int _openX;
+
+    private void StartAnim(int from, int to, bool opening)
+    {
+        // 动画进行中反转方向：从当前位置取齐，不丢弃指令
+        _anim.Stop();
+        _animFrom = Left; _animTo = to; _animOpening = opening;
+        _animStart = DateTime.UtcNow;
+        _anim.Start();
+    }
+
+    private void AnimTick()
+    {
+        var t = (DateTime.UtcNow - _animStart).TotalMilliseconds / SlideMs;
+        if (t >= 1.0)
+        {
+            _anim.Stop();
+            Left = _animTo;
+            if (!_animOpening)
+            {
+                Visible = false;   // 滑出后完全隐藏，恢复边缘监视
+                _opening = false;
+                // 收起时告诉前端重置为白板，下次贴边唤出所见即所得
+            }
+            else
+            {
+                _opening = false;
+                if (_pendingCloseCheck) { _pendingCloseCheck = false; CheckShouldCollapse(); }
+            }
+            return;
+        }
+        // 缓出（ease-out quadratic）
+        var e = 1 - (1 - t) * (1 - t);
+        Left = _animFrom + (int)((_animTo - _animFrom) * e);
+    }
+
+    // WndProc: 热键
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_HOTKEY = 0x0312;
+        if (m.Msg == WM_HOTKEY && m.WParam.ToInt64() == 0xBEEF)
+        {
+            if (Visible) BeginCollapse();
+            else { BeginExpand(); SetFrontTab("whiteboard"); }
+            return;
+        }
+        base.WndProc(ref m);
+    }
+
+    /// <summary>通知前端切换 Tab（贴边唤出 -> 白板；P4 拖放 -> all）。</summary>
+    private void SetFrontTab(string tab)
+    {
+        if (_core is null || !_bridgeReady) return;
+        var json = JsonSerializer.Serialize(new { type = "setTab", tab }, JsonOpts);
+        _core.PostWebMessageAsJson(json);
     }
 
     // ---------- P1: 文件列表 ----------
@@ -72,7 +216,6 @@ public class MainForm : Form
         _watcher.Start();
     }
 
-    /// <summary>轮询兜底：目录签名变化才推送。</summary>
     private void PushFilesIfChanged()
     {
         var sig = ComputeSignature();
@@ -95,7 +238,6 @@ public class MainForm : Form
         catch { return "error"; }
     }
 
-    /// <summary>扫描工作区并把文件列表推给前端。</summary>
     private void PushFiles()
     {
         var items = FileScanner.Scan(WorkspacePath);
@@ -109,7 +251,6 @@ public class MainForm : Form
     {
         try
         {
-            // WebMessageAsJson：字符串消息会是 "\"...\"" 的 JSON 字符串包装
             var raw = e.WebMessageAsJson;
             if (raw.StartsWith('"'))
                 raw = JsonSerializer.Deserialize<string>(raw) ?? "";
@@ -127,6 +268,14 @@ public class MainForm : Form
                     _lastSignature = ComputeSignature();
                     PushFiles();
                     break;
+                case "setPinned":
+                    {
+                        _pinned = msg.RootElement.GetProperty("pinned").GetBoolean();
+                        Log("setPinned: " + _pinned);
+                        // 取消钉住：光标不在面板内则立即收起（无需等复核宽限）
+                        if (!_pinned) BeginInvoke(CheckShouldCollapse);
+                        break;
+                    }
             }
         }
         catch (Exception ex)
@@ -140,7 +289,8 @@ public class MainForm : Form
     {
         var wa = Screen.PrimaryScreen!.WorkingArea;
         int width = Math.Max(420, wa.Width / 3);
-        Location = new Point(wa.Right - width, wa.Top);
+        _openX = wa.Right - width;
+        Location = new Point(_openX, wa.Top);
         Size = new Size(width, wa.Height);
     }
 }

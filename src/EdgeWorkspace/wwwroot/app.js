@@ -118,5 +118,8 @@ bridge?.addEventListener('message', e => {
       allItems = msg.items || [];
       if (currentTab !== 'whiteboard') renderGrid(); else updateBadges();
       break;
+    case 'setTab':
+      setTab(msg.tab);
+      break;
   }
 });
