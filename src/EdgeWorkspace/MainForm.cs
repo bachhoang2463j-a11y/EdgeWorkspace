@@ -109,8 +109,22 @@ public class MainForm : Form
 
     private void EdgeWatchTick()
     {
-        if (_opening || Visible) return;
         var (x, y) = Native.Cursor();
+
+        // 面板可见时的兜底：光标既不在面板内、也不在右缘触发带 -> 收起。
+        // 这是 MouseLeave 之外的保险（合成鼠标事件可能不触发 WinForms 路径）。
+        if (Visible && !_pinned && !_dragOver && !_menuOpen && !_anim.Enabled)
+        {
+            var inPanel = IsSelfAt(x, y);
+            var atTrigger = x >= Screen.PrimaryScreen!.WorkingArea.Right - EdgeZone;
+            if (!inPanel && !atTrigger)
+            {
+                BeginCollapse();
+                return;
+            }
+        }
+
+        if (_opening || Visible) return;
         var wa = Screen.PrimaryScreen!.WorkingArea;
         var atEdge = x >= wa.Right - EdgeZone && y > wa.Top && y < wa.Bottom;
         if (!atEdge) return;
