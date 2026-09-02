@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>临时工作区 - 纯白右边缘无感自动滑出 Demo</title>
+    <style>
+        :root {
+            --font-main: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei UI", sans-serif;
+            --primary: #2563eb;
+            --primary-light: #eff6ff;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --border-subtle: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-hover: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: var(--font-main);
+            min-height: 100vh;
+            background: #1e2430 url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=2000&q=80') center/cover no-repeat fixed;
+            overflow-x: hidden;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        /* 左上角交互说明提示 */
+        .demo-guide-panel {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            max-width: 440px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px 22px;
+            color: #f8fafc;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+        }
+
+        .demo-guide-panel h3 {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #60a5fa;
+        }
+
+        .guide-list {
+            list-style: none;
+            font-size: 12.5px;
+            line-height: 1.65;
+            color: #cbd5e1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .guide-list li {
+            position: relative;
+            padding-left: 18px;
+        }
+
+        .guide-list li::before {
+            content: "•";
+            position: absolute;
+            left: 4px;
+            color: #38bdf8;
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .edge-indicator-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        /* ==================== 屏幕最右侧 8px 无形感应区 ==================== */
+        .edge-sensor-zone {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 14px;
+            height: 100vh;
+            z-index: 998;
+            cursor: pointer;
+            /* 悬停微弱发光提示 (模拟真实桌面靠近效果) */
+            transition: background 0.2s ease;
+        }
+        .edge-sensor-zone:hover {
+            background: linear-gradient(to left, rgba(37, 99, 235, 0.35), transparent);
+        }
+
+        /* ==================== 右侧贴边抽屉主面板 ==================== */
+        .right-drawer-container {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 490px;
+            height: 100vh;
+            background: var(--bg-card);
+            box-shadow: -10px 0 36px rgba(0, 0, 0, 0.15), -1px 0 0 rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            z-index: 999;
+            /* 默认完全缩回收起至屏幕外，靠右侧鼠标边缘触碰触发 */
+            transform: translateX(100%);
+            transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* 鼠标移入屏幕右边缘 / 面板自身时，自动滑出展开 */
+        .right-drawer-container.expanded,
+        .right-drawer-container:hover {
+            transform: translateX(0);
+        }
+
+        /* 钉住常驻状态 */
+        .right-drawer-container.pinned {
+            transform: translateX(0) !important;
+        }
+
+        /* 顶部 Header */
+        .drawer-header {
+            padding: 16px 20px 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.3px;
+        }
+
+        .header-badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--border-subtle);
+            color: var(--text-main);
+        }
+
+        .action-btn.pinned-active {
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        /* ② 类型分类 Tab 导航栏 */
+        .category-tab-bar {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            gap: 4px;
+            border-bottom: 1px solid var(--border-color);
+            background: #fafbfc;
+            overflow-x: auto;
+        }
+
+        .tab-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 11px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-sub);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .tab-item:hover {
+            background: #f1f5f9;
+            color: var(--text-main);
+        }
+
+        .tab-item.active {
+            background: #ffffff;
+            color: var(--primary);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+        }
+
+        .tab-count {
+            font-size: 10px;
+            font-weight: 600;
+            opacity: 0.7;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.05);
+        }
+        .tab-item.active .tab-count {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        /* 滚动内容区 */
+        .drawer-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px 20px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* ③ 可收缩折叠的自定义分类横栏 */
+        .section-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .section-header:hover {
+            background: var(--border-subtle);
+        }
+
+        .section-title-box {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #475569;
+        }
+
+        .toggle-arrow {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.2s ease;
+            color: var(--text-muted);
+        }
+
+        .section-group.collapsed .toggle-arrow {
+            transform: rotate(-90deg);
+        }
+
+        .section-count {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .section-divider-line {
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+            margin: 0 10px;
+        }
+
+        /* 4 列缩略图网格 */
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            transition: all 0.25s ease;
+        }
+
+        .section-group.collapsed .file-grid {
+            display: none;
+        }
+
+        /* 单个文件/缩略图卡片 */
+        .file-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 4px 8px 4px;
+            border-radius: 10px;
+            background: #ffffff;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+        }
+
+        .file-card:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .file-thumb-box {
+            width: 54px;
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 6px;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .file-thumb-box svg {
+            width: 44px;
+            height: 44px;
+        }
+
+        .file-thumb-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        }
+
+        .file-title {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-main);
+            max-width: 96px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+            line-height: 1.3;
+        }
+
+        .file-meta {
+            font-size: 9.5px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* 📋 白板 / 便签卡片专属样式 */
+        .whiteboard-box {
+            background: #fefce8;
+            border: 1px solid #fef08a;
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(234, 179, 8, 0.08);
+        }
+
+        .whiteboard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 700;
+            color: #854d0e;
+        }
+
+        .whiteboard-content {
+            font-size: 12px;
+            color: #713f12;
+            line-height: 1.5;
+            outline: none;
+            background: transparent;
+            border: none;
+            resize: none;
+            font-family: inherit;
+        }
+
+        /* 底部状态操作栏 */
+        .drawer-footer {
+            padding: 11px 16px;
+            background: #fafbfc;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-sub);
+        }
+
+        .footer-action-text {
+            color: var(--primary);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+        .footer-action-text:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 左上角交互说明与快捷控制 -->
+    <div class="demo-guide-panel">
+        <h3>⚡ 边缘无感自动展开交互演示</h3>
+        <ul class="guide-list">
+            <li><strong>无需任何多余按钮</strong>：移除了所有多余的左侧手柄与浮动球。</li>
+            <li><strong>鼠标触边即出</strong>：将鼠标移动到<strong>浏览器/屏幕的最右边缘</strong>，面板自动丝滑滑出。</li>
+            <li><strong>移出自动收起</strong>：鼠标离开面板后自动收起至屏幕外，不遮挡任何工作内容。</li>
+            <li><strong>📌 钉住常驻开关</strong>：点击右上角钉子图标可锁定面板不收起，方便连续拖入文件。</li>
+        </ul>
+        <div class="edge-indicator-badge">
+            👉 将鼠标移动到【屏幕最右边缘】即可体验
+        </div>
+    </div>
+
+    <!-- 屏幕右侧无形悬停感应器 (触碰即滑出) -->
+    <div class="edge-sensor-zone" id="edgeSensor"></div>
+
+    <!-- 右侧贴边抽屉面板 (无多余把手，鼠标悬停或触边自动展开) -->
+    <div class="right-drawer-container" id="drawerContainer">
+
+        <!-- 顶部标题栏 -->
+        <div class="drawer-header">
+            <div class="header-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2">
+                    <rect x="4" y="2" width="16" height="20" rx="2"></rect>
+                    <line x1="8" y1="6" x2="16" y2="6"></line>
+                    <line x1="8" y1="10" x2="16" y2="10"></line>
+                </svg>
+                <span class="header-title">临时工作区</span>
+                <span class="header-badge" id="totalBadge">72 项</span>
+            </div>
+            <div class="header-actions">
+                <button class="action-btn" title="在资源管理器中打开 (拖入/删除)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                </button>
+                <button class="action-btn" title="刷新文件列表">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                </button>
+                <button class="action-btn" id="pinBtn" title="固定常驻 / 移出自动收起" onclick="togglePin()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- ② 顶部类型分类 Tabs -->
+        <div class="category-tab-bar">
+            <div class="tab-item active" onclick="filterTab('all', this)">全部 <span class="tab-count">72</span></div>
+            <div class="tab-item" onclick="filterTab('folder', this)">📁 文件夹 <span class="tab-count">14</span></div>
+            <div class="tab-item" onclick="filterTab('image', this)">🖼️ 图片 <span class="tab-count">8</span></div>
+            <div class="tab-item" onclick="filterTab('video', this)">🎬 视频 <span class="tab-count">5</span></div>
+            <div class="tab-item" onclick="filterTab('doc', this)">📄 文档 <span class="tab-count">42</span></div>
+            <div class="tab-item" onclick="filterTab('whiteboard', this)">📋 白板 <span class="tab-count">3</span></div>
+        </div>
+
+        <!-- 内容区域：带有 ③ 自定义分组横栏 -->
+        <div class="drawer-content" id="drawerContent">
+
+            <!-- 分组 1：核心项目 (可点击横栏折叠/展开) -->
+            <div class="section-group" id="sec-project">
+                <div class="section-header" onclick="toggleSection(this)">
+                    <div class="section-title-box">
+                        <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span>🚀 核心项目 (Project)</span>
+                    </div>
+                    <div class="section-divider-line"></div>
+                    <span class="section-count">4 项</span>
+                </div>
+
+                <!-- 4列文件网格 -->
+                <div class="file-grid">
+                    <div class="file-card" data-type="folder">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><path d="M8 14C8 10.6863 10.6863 8 14 8H24.5858C26.1771 8 27.7033 8.63214 28.8284 9.75736L33.4142 14.3431C34.5394 15.4684 36.0656 16.1 37.6569 16.1H50C53.3137 16.1 56 18.7863 56 22.1V48C56 51.3137 53.3137 54 50 54H14C10.6863 54 8 51.3137 8 48V14Z" fill="#FBBF24"/><path d="M8 24H56V48C56 51.3137 53.3137 54 50 54H14C10.6863 54 8 51.3137 8 48V24Z" fill="#F59E0B"/></svg>
+                        </div>
+                        <div class="file-title">The Sims 4 模组</div>
+                        <div class="file-meta">文件夹 · 8项</div>
+                    </div>
+
+                    <div class="file-card" data-type="image">
+                        <div class="file-thumb-box">
+                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" alt="索恩">
+                        </div>
+                        <div class="file-title">索恩_compressed.jpg</div>
+                        <div class="file-meta">96.2 KB</div>
+                    </div>
+
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#2563EB"/><rect x="20" y="18" width="24" height="4" rx="2" fill="white" opacity="0.9"/><rect x="20" y="26" width="24" height="4" rx="2" fill="white" opacity="0.9"/><rect x="20" y="34" width="16" height="4" rx="2" fill="white" opacity="0.9"/></svg>
+                        </div>
+                        <div class="file-title">策划案初稿_0902.docx</div>
+                        <div class="file-meta">24.5 KB</div>
+                    </div>
+
+                    <div class="file-card" data-type="video">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#8B5CF6"/><polygon points="26,24 44,32 26,40" fill="white"/></svg>
+                        </div>
+                        <div class="file-title">录屏演示_0820.mp4</div>
+                        <div class="file-meta">14.8 MB</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分组 2：个人与临时文档 (可折叠) -->
+            <div class="section-group" id="sec-personal">
+                <div class="section-header" onclick="toggleSection(this)">
+                    <div class="section-title-box">
+                        <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span>👤 个人生活与备忘 (Personal)</span>
+                    </div>
+                    <div class="section-divider-line"></div>
+                    <span class="section-count">4 项</span>
+                </div>
+
+                <div class="file-grid">
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#94A3B8"/><rect x="20" y="18" width="24" height="3" rx="1.5" fill="white"/><rect x="20" y="25" width="24" height="3" rx="1.5" fill="white"/><rect x="20" y="32" width="20" height="3" rx="1.5" fill="white"/></svg>
+                        </div>
+                        <div class="file-title">状态栏数据.txt</div>
+                        <div class="file-meta">7.5 KB</div>
+                    </div>
+
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#94A3B8"/><rect x="20" y="18" width="24" height="3" rx="1.5" fill="white"/><rect x="20" y="25" width="24" height="3" rx="1.5" fill="white"/><rect x="20" y="32" width="20" height="3" rx="1.5" fill="white"/></svg>
+                        </div>
+                        <div class="file-title">小手机相关配置.txt</div>
+                        <div class="file-meta">5.4 KB</div>
+                    </div>
+
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#059669"/><rect x="20" y="18" width="24" height="5" rx="1" fill="white" opacity="0.8"/><rect x="20" y="26" width="10" height="5" rx="1" fill="white" opacity="0.8"/><rect x="34" y="26" width="10" height="5" rx="1" fill="white" opacity="0.8"/></svg>
+                        </div>
+                        <div class="file-title">8月数据汇总.xlsx</div>
+                        <div class="file-meta">142 KB</div>
+                    </div>
+
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box">
+                            <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#EF4444"/><text x="32" y="36" fill="white" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">PDF</text></svg>
+                        </div>
+                        <div class="file-title">产品使用说明书.pdf</div>
+                        <div class="file-meta">1.8 MB</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分组 3：白板便签卡片 (Whiteboard / Sticky Notes) -->
+            <div class="section-group" id="sec-whiteboard">
+                <div class="section-header" onclick="toggleSection(this)">
+                    <div class="section-title-box">
+                        <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span>📋 随手白板与待办 (Whiteboard)</span>
+                    </div>
+                    <div class="section-divider-line"></div>
+                    <span class="section-count">1 项</span>
+                </div>
+
+                <div class="whiteboard-box" data-type="whiteboard">
+                    <div class="whiteboard-header">
+                        <span>📌 今日临时待办便签</span>
+                        <span style="font-size: 11px; opacity: 0.7;">自动保存</span>
+                    </div>
+                    <textarea class="whiteboard-content" rows="3" placeholder="在此直接随手记录临时想法、代码片段、待办事项...">1. 下午 3 点校对《策划案初稿_0902.docx》
+2. 将索恩高清原图打包移入工作区</textarea>
+                </div>
+            </div>
+
+            <!-- 分组 4：归档与历史文件 (演示默认折叠收起状态) -->
+            <div class="section-group collapsed" id="sec-archive">
+                <div class="section-header" onclick="toggleSection(this)">
+                    <div class="section-title-box">
+                        <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span>📦 历史归档文件 (点击展开)</span>
+                    </div>
+                    <div class="section-divider-line"></div>
+                    <span class="section-count">60 项 (已折叠)</span>
+                </div>
+
+                <div class="file-grid">
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#94A3B8"/><rect x="20" y="18" width="24" height="3" rx="1.5" fill="white"/></svg></div>
+                        <div class="file-title">新建文本文档 - 副本 (2).txt</div>
+                        <div class="file-meta">260 B</div>
+                    </div>
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#94A3B8"/><rect x="20" y="18" width="24" height="3" rx="1.5" fill="white"/></svg></div>
+                        <div class="file-title">新建文本文档 - 副本 (3).txt</div>
+                        <div class="file-meta">260 B</div>
+                    </div>
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#94A3B8"/><rect x="20" y="18" width="24" height="3" rx="1.5" fill="white"/></svg></div>
+                        <div class="file-title">新建文本文档 - 副本 (4).txt</div>
+                        <div class="file-meta">260 B</div>
+                    </div>
+                    <div class="file-card" data-type="doc">
+                        <div class="file-thumb-box"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="8" width="40" height="48" rx="6" fill="#94A3B8"/><rect x="20" y="18" width="24" height="3" rx="1.5" fill="white"/></svg></div>
+                        <div class="file-title">新建文本文档 - 副本 (5).txt</div>
+                        <div class="file-meta">260 B</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 底部状态操作栏 -->
+        <div class="drawer-footer">
+            <span class="footer-action-text">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                拖入文件 = 移入工作区 · Ctrl+Shift+Z 唤出
+            </span>
+            <span>滚轮翻页 · 右键菜单</span>
+        </div>
+    </div>
+
+    <script>
+        const sensor = document.getElementById('edgeSensor');
+        const drawer = document.getElementById('drawerContainer');
+        const pinBtn = document.getElementById('pinBtn');
+        let isPinned = false;
+
+        // 鼠标移入屏幕右边缘感应器 -> 展开
+        sensor.addEventListener('mouseenter', () => {
+            drawer.classList.add('expanded');
+        });
+
+        // 鼠标移出抽屉面板 -> 收起 (未钉住时)
+        drawer.addEventListener('mouseleave', () => {
+            if (!isPinned) {
+                drawer.classList.remove('expanded');
+            }
+        });
+
+        // 钉住切换
+        function togglePin() {
+            isPinned = !isPinned;
+            drawer.classList.toggle('pinned', isPinned);
+            pinBtn.classList.toggle('pinned-active', isPinned);
+        }
+
+        // 分组折叠/展开
+        function toggleSection(header) {
+            const group = header.parentElement;
+            group.classList.toggle('collapsed');
+        }
+
+        // 标签页过滤
+        function filterTab(type, tabElement) {
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            if (tabElement) tabElement.classList.add('active');
+
+            const cards = document.querySelectorAll('.file-card, .whiteboard-box');
+            cards.forEach(card => {
+                if (type === 'all' || card.dataset.type === type) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            if (type === 'whiteboard') {
+                document.querySelectorAll('.section-group').forEach(s => s.classList.add('collapsed'));
+                document.getElementById('sec-whiteboard').classList.remove('collapsed');
+            } else if (type === 'all') {
+                document.getElementById('sec-project').classList.remove('collapsed');
+                document.getElementById('sec-personal').classList.remove('collapsed');
+                document.getElementById('sec-whiteboard').classList.remove('collapsed');
+            }
+        }
+    </script>
+</body>
+</html>

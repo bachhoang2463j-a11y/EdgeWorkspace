@@ -1,0 +1,4 @@
+bin/
+obj/
+WebView2Data/
+*.user
