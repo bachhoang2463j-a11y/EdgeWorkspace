@@ -78,6 +78,12 @@ public class MainForm : Form
             _anim.Tick += (_, _) => AnimTick();
             _edgeWatch.Start();
             Native.RegisterAppHotKey(Handle);
+
+            // P4: 拖入收纳（窗体级 OLE）
+            AllowDrop = true;
+            DragEnter += OnDragEnter;
+            DragOver += OnDragOver;
+            DragDrop += OnDragDrop;
         };
 
         // 移开判定（600ms 宽限）
@@ -99,6 +105,7 @@ public class MainForm : Form
 
     private bool _opening;
     private bool _pendingCloseCheck;
+    private DateTime _lastExpandDone = DateTime.MinValue;
 
     private void CheckShouldCollapse()
     {
@@ -113,12 +120,15 @@ public class MainForm : Form
 
         // 面板可见时的兜底：光标既不在面板内、也不在右缘触发带 -> 收起。
         // 这是 MouseLeave 之外的保险（合成鼠标事件可能不触发 WinForms 路径）。
-        if (Visible && !_pinned && !_dragOver && !_menuOpen && !_anim.Enabled)
+        // 唤出后前 1.2s 不收（给用户把鼠标从屏幕边缘挪进面板的时间）。
+        if (Visible && !_pinned && !_dragOver && !_menuOpen && !_anim.Enabled
+            && (DateTime.UtcNow - _lastExpandDone).TotalMilliseconds > 1200)
         {
             var inPanel = IsSelfAt(x, y);
             var atTrigger = x >= Screen.PrimaryScreen!.WorkingArea.Right - EdgeZone;
             if (!inPanel && !atTrigger)
             {
+                Log("watchdog collapse: cursor=" + x + "," + y + " rect=" + Left + ".." + Right);
                 BeginCollapse();
                 return;
             }
@@ -191,6 +201,7 @@ public class MainForm : Form
             else
             {
                 _opening = false;
+                _lastExpandDone = DateTime.UtcNow;
                 if (_pendingCloseCheck) { _pendingCloseCheck = false; CheckShouldCollapse(); }
             }
             return;
@@ -219,6 +230,52 @@ public class MainForm : Form
         if (_core is null || !_bridgeReady) return;
         var json = JsonSerializer.Serialize(new { type = "setTab", tab }, JsonOpts);
         _core.PostWebMessageAsJson(json);
+    }
+
+    /// <summary>P4: 从面板拖文件出去（OLE 源）。DoDragDrop 自带消息循环，会阻塞到松手。</summary>
+    private void StartDragOut(string name)
+    {
+        var path = Path.Combine(WorkspacePath, name);
+        if (!File.Exists(path) && !Directory.Exists(path)) return;
+        var data = new DataObject(DataFormats.FileDrop, new[] { path });
+        _dragOver = true;
+        try { _web.DoDragDrop(data, DragDropEffects.Copy | DragDropEffects.Move); }
+        finally
+        {
+            _dragOver = false;
+            Task.Delay(600).ContinueWith(_ => BeginInvoke(CheckShouldCollapse));
+        }
+    }
+
+    // ---------- P4: 拖放 ----------
+
+    /// <summary>拖文件入面板 = 移入工作区；拖放期间挂起收起。</summary>
+    private void OnDragEnter(object? sender, DragEventArgs e)
+    {
+        _dragOver = e.Data!.GetDataPresent(DataFormats.FileDrop);
+        // 拖放悬停时自动唤出（若隐藏）并切到【全部】
+        if (_dragOver && !Visible)
+        {
+            BeginExpand();
+            SetFrontTab("all");
+        }
+        e.Effect = _dragOver ? DragDropEffects.Move : DragDropEffects.None;
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e) =>
+        e.Effect = e.Data!.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
+
+    private void OnDragDrop(object? sender, DragEventArgs e)
+    {
+        _dragOver = false;
+        if (e.Data!.GetData(DataFormats.FileDrop) is not string[] files) return;
+        foreach (var f in files)
+        {
+            try { FileOps.MoveInto(f, WorkspacePath); }
+            catch (Exception ex) { Log("MoveInto failed: " + f + " - " + ex.Message); }
+        }
+        _lastSignature = ComputeSignature(); // 立即失效签名，推送刷新
+        PushFiles();
     }
 
     // ---------- P1: 文件列表 ----------
@@ -288,6 +345,40 @@ public class MainForm : Form
                         Log("setPinned: " + _pinned);
                         // 取消钉住：光标不在面板内则立即收起（无需等复核宽限）
                         if (!_pinned) BeginInvoke(CheckShouldCollapse);
+                        break;
+                    }
+                case "openPath":
+                    {
+                        var name = msg.RootElement.GetProperty("name").GetString()!;
+                        FileOps.Open(Path.Combine(WorkspacePath, name));
+                        break;
+                    }
+                case "revealItem":
+                    {
+                        var name = msg.RootElement.GetProperty("name").GetString()!;
+                        FileOps.Reveal(Path.Combine(WorkspacePath, name));
+                        break;
+                    }
+                case "openFolder":
+                    FileOps.OpenFolder(WorkspacePath);
+                    break;
+                case "contextMenu":
+                    {
+                        var name = msg.RootElement.GetProperty("name").GetString()!;
+                        _menuOpen = true;
+                        BeginInvoke(() =>
+                        {
+                            FileOps.ShowContextMenu(Handle, Path.Combine(WorkspacePath, name));
+                            // 菜单关闭后稍等再解除（菜单命令可能还在跑）
+                            Task.Delay(800).ContinueWith(_ => BeginInvoke(() => _menuOpen = false));
+                        });
+                        break;
+                    }
+                case "startDragOut":
+                    {
+                        // 前端 mousedown 拖动开始：C# 发起 OLE 拖出
+                        var name = msg.RootElement.GetProperty("name").GetString()!;
+                        BeginInvoke(() => StartDragOut(name));
                         break;
                     }
             }

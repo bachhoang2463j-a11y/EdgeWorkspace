@@ -102,6 +102,20 @@ function renderGrid() {
     meta.textContent = it.isFolder ? '文件夹' : fmtSize(it.size);
 
     card.append(thumb, title, meta);
+
+    // P4 交互
+    card.addEventListener('click', () => post('openPath', { name: it.name }));
+    card.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      post('contextMenu', { name: it.name });
+    });
+    // 拖出：HTML5 拖拽只作手势检测，实际 OLE 拖放由 C# DoDragDrop 执行
+    card.draggable = true;
+    card.addEventListener('dragstart', e => {
+      e.preventDefault();
+      post('startDragOut', { name: it.name });
+    });
+
     frag.append(card);
   }
   grid.replaceChildren(frag);
