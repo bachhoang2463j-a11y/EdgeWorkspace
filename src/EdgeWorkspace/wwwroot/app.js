@@ -25,6 +25,7 @@ function bindTabs() {
 }
 
 function setTab(tab) {
+  if (currentTab === 'whiteboard' && tab !== 'whiteboard') flushNotes();
   currentTab = tab;
   document.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   const isBoard = tab === 'whiteboard';
@@ -135,5 +136,98 @@ bridge?.addEventListener('message', e => {
     case 'setTab':
       setTab(msg.tab);
       break;
+    case 'notes':
+      allNotes = msg.notes || [];
+      renderNoteWall();
+      break;
   }
 });
+
+// ---------- P5: 白板便签墙 ----------
+// 无上限：每张便签 = notes/ 下一个 txt（C# NoteStore 管理）。
+// 原生 textarea 直接编辑（中文输入零风险），输入停 600ms 自动保存。
+
+let allNotes = [];
+const saveTimers = new Map();   // id -> timer
+const dirtyNotes = new Set();
+
+function renderNoteWall() {
+  const wall = document.getElementById('noteWall');
+  const frag = document.createDocumentFragment();
+
+  for (const n of allNotes) {
+    frag.append(buildNoteCard(n));
+  }
+
+  // 新建卡（始终在最后）
+  const addCard = document.createElement('div');
+  addCard.className = 'whiteboard-box whiteboard-add';
+  addCard.innerHTML =
+    '<div class="whiteboard-header"><span>＋ 新建便签</span></div>' +
+    '<div class="whiteboard-add-hint">点击添加一张新便签</div>';
+  addCard.addEventListener('click', () => post('noteCreate'));
+  frag.append(addCard);
+
+  wall.replaceChildren(frag);
+}
+
+function buildNoteCard(n) {
+  const box = document.createElement('div');
+  box.className = 'whiteboard-box';
+
+  const header = document.createElement('div');
+  header.className = 'whiteboard-header';
+  const title = document.createElement('span');
+  title.textContent = '便签 · ' + (n.mtime || '');
+  const del = document.createElement('button');
+  del.className = 'whiteboard-del';
+  del.textContent = '删除';
+  del.title = '删除这张便签';
+  del.addEventListener('click', e => {
+    e.stopPropagation();
+    if (confirm('删除这张便签？内容不可恢复。')) {
+      saveTimers.delete(n.id);
+      dirtyNotes.delete(n.id);
+      post('noteDelete', { id: n.id });
+    }
+  });
+  header.append(title, del);
+
+  const ta = document.createElement('textarea');
+  ta.className = 'whiteboard-content';
+  ta.value = n.content;
+  ta.placeholder = '在此随手记录：临时想法、代码片段、待办…';
+  ta.dataset.noteId = n.id;
+  // 防抖自动保存：停止输入 600ms 落盘
+  ta.addEventListener('input', () => {
+    dirtyNotes.add(n.id);
+    clearTimeout(saveTimers.get(n.id));
+    saveTimers.set(n.id, setTimeout(() => {
+      saveTimers.delete(n.id);
+      post('noteSave', { id: n.id, content: ta.value });
+    }, 600));
+  });
+  // 失焦时把未保存的立即落盘
+  ta.addEventListener('blur', () => {
+    if (saveTimers.has(n.id)) {
+      clearTimeout(saveTimers.get(n.id));
+      saveTimers.delete(n.id);
+      post('noteSave', { id: n.id, content: ta.value });
+    }
+  });
+
+  box.append(header, ta);
+  return box;
+}
+
+// 离开白板视图时把所有待保存的定时器立即落盘
+function flushNotes() {
+  document.querySelectorAll('.whiteboard-content').forEach(ta => {
+    const id = ta.dataset.noteId;
+    if (saveTimers.has(id)) {
+      clearTimeout(saveTimers.get(id));
+      saveTimers.delete(id);
+      post('noteSave', { id, content: ta.value });
+    }
+  });
+}

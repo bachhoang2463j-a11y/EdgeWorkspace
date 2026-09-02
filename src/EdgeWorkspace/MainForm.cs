@@ -292,9 +292,45 @@ public class MainForm : Form
     private void PushFilesIfChanged()
     {
         var sig = ComputeSignature();
-        if (sig == _lastSignature) return;
-        _lastSignature = sig;
-        PushFiles();
+        if (sig != _lastSignature)
+        {
+            _lastSignature = sig;
+            PushFiles();
+        }
+        var nsig = ComputeNoteSignature();
+        if (nsig != _lastNoteSignature)
+        {
+            _lastNoteSignature = nsig;
+            // 编辑中的保存会写文件 -> 签名变化 -> 重推 -> 前端 textarea 重建会丢焦点。
+            // 仅当便签"集合"变化（数量/大小）时才推；纯内容编辑由前端自行维持。
+            PushNotesIfCountChanged();
+        }
+    }
+
+    private string _lastNoteSignature = "";
+    private int _lastNoteCount = -1;
+
+    private string ComputeNoteSignature()
+    {
+        try
+        {
+            long acc = 0;
+            foreach (var f in new DirectoryInfo(NoteStore.Dir).EnumerateFiles("*.txt"))
+                acc ^= f.Name.GetHashCode() ^ f.LastWriteTimeUtc.Ticks ^ f.Length;
+            return acc.ToString("X");
+        }
+        catch { return "error"; }
+    }
+
+    private void PushNotesIfCountChanged()
+    {
+        var notes = NoteStore.LoadAll();
+        if (notes.Count == _lastNoteCount) return;
+        _lastNoteCount = notes.Count;
+        var json = JsonSerializer.Serialize(new { type = "notes", notes }, JsonOpts);
+        if (_core is null || !_bridgeReady) return;
+        BeginInvoke(() => _core.PostWebMessageAsJson(json));
+        Log("PushNotes(count-based): posted " + notes.Count);
     }
 
     private string ComputeSignature()
@@ -309,6 +345,16 @@ public class MainForm : Form
             return acc.ToString("X");
         }
         catch { return "error"; }
+    }
+
+    /// <summary>把便签列表推给前端（P5）。</summary>
+    private void PushNotes()
+    {
+        if (_core is null || !_bridgeReady) return;
+        var notes = NoteStore.LoadAll();
+        var json = JsonSerializer.Serialize(new { type = "notes", notes }, JsonOpts);
+        BeginInvoke(() => _core.PostWebMessageAsJson(json));
+        Log("PushNotes: posted " + notes.Count);
     }
 
     private void PushFiles()
@@ -336,10 +382,12 @@ public class MainForm : Form
                     _bridgeReady = true;
                     _lastSignature = ComputeSignature();
                     PushFiles();
+                    PushNotes();
                     break;
                 case "refresh":
                     _lastSignature = ComputeSignature();
                     PushFiles();
+                    PushNotes();
                     break;
                 case "setPinned":
                     {
@@ -381,6 +429,27 @@ public class MainForm : Form
                         // 前端 mousedown 拖动开始：C# 发起 OLE 拖出
                         var name = msg.RootElement.GetProperty("name").GetString()!;
                         BeginInvoke(() => StartDragOut(name));
+                        break;
+                    }
+                // ---------- P5: 白板便签 ----------
+                case "noteCreate":
+                    {
+                        NoteStore.Create();
+                        PushNotes();
+                        break;
+                    }
+                case "noteSave":
+                    {
+                        var id = msg.RootElement.GetProperty("id").GetString()!;
+                        var content = msg.RootElement.GetProperty("content").GetString() ?? "";
+                        NoteStore.Save(id, content);
+                        break; // 不推送：编辑中频繁保存，列表由前端本地状态维持
+                    }
+                case "noteDelete":
+                    {
+                        var id = msg.RootElement.GetProperty("id").GetString()!;
+                        NoteStore.Delete(id);
+                        PushNotes();
                         break;
                     }
             }
