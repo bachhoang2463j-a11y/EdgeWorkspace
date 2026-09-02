@@ -76,7 +76,7 @@ internal sealed class ShellContextMenu
         {
             var parent = ILClone(pidlFull);
             if (ILRemoveLastID(parent) == IntPtr.Zero) { ILFree(parent); return; }
-            var child = ILGetLastID(pidlFull);
+            var child = ILFindLastID(pidlFull);
 
             SHGetDesktopFolder(out var desktop);
             desktop.BindToObject(parent, out var folderObj);
@@ -176,8 +176,8 @@ internal sealed class ShellContextMenu
     [DllImport("shell32.dll", EntryPoint = "ILRemoveLastID")]
     private static extern IntPtr ILRemoveLastID(IntPtr pidl);
 
-    [DllImport("shell32.dll")]
-    private static extern IntPtr ILGetLastID(IntPtr pidl);
+    [DllImport("shell32.dll", EntryPoint = "ILFindLastID")]
+    private static extern IntPtr ILFindLastID(IntPtr pidl);
 
     [DllImport("shell32.dll", EntryPoint = "ILClone")]
     private static extern IntPtr ILClone(IntPtr pidl);
