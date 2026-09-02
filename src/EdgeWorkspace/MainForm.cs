@@ -36,6 +36,8 @@ public class MainForm : Form
     private static void Log(string line) =>
         File.AppendAllText(LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + line + Environment.NewLine);
 
+    static MainForm() => FileOps.LogLine += Log;
+
     public MainForm()
     {
         Text = "EdgeWorkspace";

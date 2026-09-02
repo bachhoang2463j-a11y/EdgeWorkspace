@@ -1,6 +1,5 @@
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace EdgeWorkspace;
 
@@ -47,84 +46,46 @@ public static class FileOps
 
     // ---------- Shell 原生右键菜单 ----------
 
+    public static event Action<string>? LogLine;
+
     public static void ShowContextMenu(IntPtr owner, string path)
     {
-        var menu = new ShellContextMenu(owner, path);
-        menu.Show(Cursor.Position);
+        try
+        {
+            new ShellContextMenu(owner, path).Show(Cursor.Position);
+        }
+        catch (Exception ex)
+        {
+            LogLine?.Invoke("ShowContextMenu failed: " + ex.GetType().Name + " " + ex.Message);
+        }
     }
 }
 
 /// <summary>
-/// Shell 文件右键菜单：完整 IContextMenu COM 流程。
-/// 注意：菜单以 Win32 弹出窗实现，期间必须让出消息循环。
+/// Shell 文件右键菜单：SHCreateItemFromParsingName -> IShellItem ->
+/// BindToHandler(BHID_SFUIObject) -> IContextMenu。
+/// 之前的实现手写 IShellFolder 完整接口导致 vtable 槽位错（AccessViolation 闪退），
+/// 本实现只声明实际调用的方法，且全部经 GUID 验证的官方路径。
 /// </summary>
 internal sealed class ShellContextMenu
 {
     private readonly IntPtr _owner;
     private readonly string _path;
 
+    // 官方 GUID（shlguid.h / shobjidl_core）
+    private static readonly Guid IID_IShellItem = new("43826D1E-E718-42EE-BC55-A1E261C37BFE");
+    private static readonly Guid IID_IContextMenu = new("000214E4-0000-0000-C000-000000000046");
+    private static readonly Guid BHID_SFUIObject = new("3981E225-F559-11D3-8E3A-00C04F6837D5");
+
+    private const uint CMF_NORMAL = 0;
+    private const uint TPM_RETURNCMD = 0x0100, TPM_RIGHTBUTTON = 0x0002;
+    private const int CMD_FIRST = 1;
+
     public ShellContextMenu(IntPtr owner, string path)
     {
         _owner = owner;
         _path = path;
     }
-
-    public void Show(Point screenPos)
-    {
-        if (SHParseDisplayName(_path, IntPtr.Zero, out var pidlFull, 0, out _) != 0) return;
-        try
-        {
-            var parent = ILClone(pidlFull);
-            if (ILRemoveLastID(parent) == IntPtr.Zero) { ILFree(parent); return; }
-            var child = ILFindLastID(pidlFull);
-
-            SHGetDesktopFolder(out var desktop);
-            desktop.BindToObject(parent, out var folderObj);
-            var folder = (IShellFolder)folderObj;
-
-            folder.GetUIObjectOf(_owner, 1, new[] { child }, IID_IContextMenu, out var ctxObj);
-            var ctx = (IContextMenu)ctxObj;
-
-            var hMenu = CreatePopupMenu();
-            try
-            {
-                ctx.QueryContextMenu(hMenu, 0, CMD_FIRST, 0x7FFF, CMF_NORMAL);
-                SetForegroundWindow(_owner);
-                var cmd = TrackPopupMenuEx(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, screenPos.X, screenPos.Y, _owner, IntPtr.Zero);
-                if (cmd != 0)
-                {
-                    var info = new CMINVOKECOMMANDINFOEX
-                    {
-                        cbSize = Marshal.SizeOf<CMINVOKECOMMANDINFOEX>(),
-                        hwnd = _owner,
-                        lpVerb = (IntPtr)(cmd - CMD_FIRST),
-                        nShow = 5, // SW_SHOW
-                    };
-                    ctx.InvokeCommand(ref info);
-                }
-            }
-            finally
-            {
-                DestroyMenu(hMenu);
-                ILFree(parent);
-                Marshal.ReleaseComObject(ctx);
-                Marshal.ReleaseComObject(folder);
-                Marshal.ReleaseComObject(desktop);
-            }
-        }
-        finally
-        {
-            ILFree(pidlFull);
-        }
-    }
-
-    // ---------- COM interop ----------
-
-    private static readonly Guid IID_IContextMenu = new("000214E4-0000-0000-C000-000000000046");
-
-    private const uint CMF_NORMAL = 0;
-    private const uint TPM_RETURNCMD = 0x0100, TPM_RIGHTBUTTON = 0x0002;
-    private const int CMD_FIRST = 1;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct CMINVOKECOMMANDINFOEX
@@ -144,19 +105,11 @@ internal sealed class ShellContextMenu
         [MarshalAs(UnmanagedType.LPWStr)] public string lpTitleW;
     }
 
-    [ComImport, Guid("000214E6-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IShellFolder
+    // 只声明实际用到的方法，且都在接口前部（vtable 前几槽，签名错也难崩）
+    [ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellItem
     {
-        void ParseDisplayName(IntPtr hwnd, IntPtr pbc, [MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr pchEaten, out IntPtr pidl, IntPtr attributes);
-        void EnumObjects(IntPtr hwnd, uint flags, out IntPtr enumList);
-        void BindToObject(IntPtr pidl, out object folder);
-        void BindToStorage(IntPtr pidl, ref Guid riid, out object ppv);
-        int CompareIDs(IntPtr lParam, IntPtr pidl1, IntPtr pidl2);
-        void CreateViewObject(IntPtr hwndOwner, ref Guid riid, out object ppv);
-        int GetAttributesOf(uint cidl, IntPtr[] apidl, ref uint rgfInOut);
-        void GetUIObjectOf(IntPtr hwndOwner, uint cidl, IntPtr[] apidl, [In] ref Guid riid, out object ppv);
-        void GetDisplayNameOf(IntPtr pidl, uint flags, IntPtr name);
-        void SetNameOf(IntPtr hwnd, IntPtr pidl, [MarshalAs(UnmanagedType.LPWStr)] string name, uint flags, out IntPtr pidlOut);
+        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object ppv);
     }
 
     [ComImport, Guid("000214E4-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -166,24 +119,6 @@ internal sealed class ShellContextMenu
         [PreserveSig] int InvokeCommand(ref CMINVOKECOMMANDINFOEX pici);
         [PreserveSig] int GetCommandString(uint idCmd, uint uType, IntPtr reserved, IntPtr name, uint cchMax);
     }
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern int SHParseDisplayName(string name, IntPtr pbc, out IntPtr pidl, uint sfgaoIn, out uint sfgaoOut);
-
-    [DllImport("shell32.dll")]
-    private static extern void ILFree(IntPtr pidl);
-
-    [DllImport("shell32.dll", EntryPoint = "ILRemoveLastID")]
-    private static extern IntPtr ILRemoveLastID(IntPtr pidl);
-
-    [DllImport("shell32.dll", EntryPoint = "ILFindLastID")]
-    private static extern IntPtr ILFindLastID(IntPtr pidl);
-
-    [DllImport("shell32.dll", EntryPoint = "ILClone")]
-    private static extern IntPtr ILClone(IntPtr pidl);
-
-    [DllImport("shell32.dll")]
-    private static extern int SHGetDesktopFolder(out IShellFolder ppshf);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr h);
@@ -196,4 +131,50 @@ internal sealed class ShellContextMenu
 
     [DllImport("user32.dll")]
     private static extern int TrackPopupMenuEx(IntPtr hMenu, uint uFlags, int x, int y, IntPtr hWnd, IntPtr lptpm);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+    private static extern int SHCreateItemFromParsingName(string pszPath, IntPtr pbc, ref Guid riid, out IShellItem ppv);
+
+    public void Show(Point screenPos)
+    {
+        var iidShellItem = IID_IShellItem;
+        if (SHCreateItemFromParsingName(_path, IntPtr.Zero, ref iidShellItem, out var item) != 0)
+            return;
+        try
+        {
+            var iid = IID_IContextMenu;
+            var bhid = BHID_SFUIObject;
+            item.BindToHandler(IntPtr.Zero, ref bhid, ref iid, out var ctxObj);
+            if (ctxObj is not IContextMenu ctx) return;
+
+            var hMenu = CreatePopupMenu();
+            try
+            {
+                if (ctx.QueryContextMenu(hMenu, 0, CMD_FIRST, 0x7FFF, CMF_NORMAL) < 0) return;
+                SetForegroundWindow(_owner);
+                var cmd = TrackPopupMenuEx(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                    screenPos.X, screenPos.Y, _owner, IntPtr.Zero);
+                if (cmd != 0)
+                {
+                    var info = new CMINVOKECOMMANDINFOEX
+                    {
+                        cbSize = Marshal.SizeOf<CMINVOKECOMMANDINFOEX>(),
+                        hwnd = _owner,
+                        lpVerb = (IntPtr)(cmd - CMD_FIRST),
+                        nShow = 5, // SW_SHOW
+                    };
+                    ctx.InvokeCommand(ref info);
+                }
+            }
+            finally
+            {
+                DestroyMenu(hMenu);
+                Marshal.ReleaseComObject(ctx);
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(item);
+        }
+    }
 }
