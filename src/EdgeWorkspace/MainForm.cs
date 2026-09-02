@@ -1,14 +1,27 @@
+using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 
 namespace EdgeWorkspace;
 
 /// <summary>
 /// 主面板窗口：右缘停靠、置顶、WebView2 UI 宿主。
-/// P0 仅负责窗口与页面加载；唤出/收起/热键在 P3，数据桥在 P1 接通。
+/// P1：文件扫描 + FSW 即时推送 + 轮询兜底（F: 卷不推送通知，见 WorkspaceWatcher 注释）。
 /// </summary>
 public class MainForm : Form
 {
     private Microsoft.Web.WebView2.WinForms.WebView2 _web = null!;
+    private CoreWebView2? _core;
+    private WorkspaceWatcher? _watcher;
+    private readonly System.Windows.Forms.Timer _poll = new() { Interval = 1500 };
+    private bool _bridgeReady;
+    private string _lastSignature = "";
+
+    private static readonly string WorkspacePath = "F:\\Workspace_Temp";
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "bridge.log");
+
+    private static void Log(string line) =>
+        File.AppendAllText(LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + line + Environment.NewLine);
 
     public MainForm()
     {
@@ -20,7 +33,7 @@ public class MainForm : Form
         BackColor = Color.White;
         DoubleBuffered = true;
 
-        SizeChanged += (_, _) => LayoutWebView();
+        Deactivate += (_, _) => { /* P3: 收起判定 */ };
 
         Load += async (_, _) =>
         {
@@ -32,19 +45,94 @@ public class MainForm : Form
             };
             Controls.Add(_web);
 
-            // 用户数据目录放在应用旁，避免写 Program Files
             var dataDir = Path.Combine(AppContext.BaseDirectory, "WebView2Data");
             Directory.CreateDirectory(dataDir);
             await _web.EnsureCoreWebView2Async(await CoreWebView2Environment.CreateAsync(null, dataDir));
+            _core = _web.CoreWebView2;
 
-            // 虚拟主机映射：页面里用 https://app.local/ 引用 wwwroot
             var root = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-            _web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            _core.SetVirtualHostNameToFolderMapping(
                 "app.local", root, CoreWebView2HostResourceAccessKind.Allow);
-            _web.CoreWebView2.Navigate("https://app.local/index.html");
 
-            LayoutWebView();
+            _core.WebMessageReceived += OnWebMessage;
+            _core.Navigate("https://app.local/index.html");
+
+            StartWatcher();
+            _poll.Tick += (_, _) => PushFilesIfChanged();
+            _poll.Start();
         };
+    }
+
+    // ---------- P1: 文件列表 ----------
+
+    private void StartWatcher()
+    {
+        Directory.CreateDirectory(WorkspacePath);
+        _watcher = new WorkspaceWatcher(WorkspacePath, PushFiles);
+        _watcher.Start();
+    }
+
+    /// <summary>轮询兜底：目录签名变化才推送。</summary>
+    private void PushFilesIfChanged()
+    {
+        var sig = ComputeSignature();
+        if (sig == _lastSignature) return;
+        _lastSignature = sig;
+        PushFiles();
+    }
+
+    private string ComputeSignature()
+    {
+        try
+        {
+            var dir = new DirectoryInfo(WorkspacePath);
+            if (!dir.Exists) return "missing";
+            long acc = 0;
+            foreach (var f in dir.EnumerateFileSystemInfos())
+                acc ^= f.Name.GetHashCode() ^ f.LastWriteTimeUtc.Ticks ^ (long)(f is FileInfo fi ? fi.Length : -1);
+            return acc.ToString("X");
+        }
+        catch { return "error"; }
+    }
+
+    /// <summary>扫描工作区并把文件列表推给前端。</summary>
+    private void PushFiles()
+    {
+        var items = FileScanner.Scan(WorkspacePath);
+        if (_core is null || !_bridgeReady) return;
+        var json = JsonSerializer.Serialize(new { type = "files", total = items.Count, items }, JsonOpts);
+        BeginInvoke(() => _core.PostWebMessageAsJson(json));
+        Log("PushFiles: posted " + items.Count + " items");
+    }
+
+    private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            // WebMessageAsJson：字符串消息会是 "\"...\"" 的 JSON 字符串包装
+            var raw = e.WebMessageAsJson;
+            if (raw.StartsWith('"'))
+                raw = JsonSerializer.Deserialize<string>(raw) ?? "";
+
+            var msg = JsonDocument.Parse(raw);
+            var type = msg.RootElement.GetProperty("type").GetString();
+            switch (type)
+            {
+                case "ready":
+                    _bridgeReady = true;
+                    _lastSignature = ComputeSignature();
+                    PushFiles();
+                    break;
+                case "refresh":
+                    _lastSignature = ComputeSignature();
+                    PushFiles();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log("WebMessage error: " + ex.Message);
+        }
     }
 
     /// <summary>停靠到工作区右缘（可见状态）。</summary>
@@ -54,10 +142,5 @@ public class MainForm : Form
         int width = Math.Max(420, wa.Width / 3);
         Location = new Point(wa.Right - width, wa.Top);
         Size = new Size(width, wa.Height);
-    }
-
-    private void LayoutWebView()
-    {
-        // WebView2 Dock=Fill 自适应，无需额外处理；保留钩子供后续使用
     }
 }
