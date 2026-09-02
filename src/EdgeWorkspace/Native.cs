@@ -44,7 +44,11 @@ internal static class Native
         return (pt.X, pt.Y);
     }
 
-    /// <summary>点下方是桌面（Progman/WorkerW）吗？</summary>
+    /// <summary>
+    /// 点下方是否可视为"桌面暴露"：桌面本身（Progman/WorkerW）、桌面图标列表，
+    /// 或非交互覆盖层（任务栏/Rainmeter 等贴边小部件）都放行；
+    /// 应用窗口（浏览器/编辑器等）盖住右缘时才拒绝。
+    /// </summary>
     public static bool IsDesktopAt(int x, int y)
     {
         var h = WindowFromPoint(new POINT { X = x, Y = y });
@@ -52,7 +56,10 @@ internal static class Native
         var sb = new System.Text.StringBuilder(64);
         GetClassName(h, sb, 64);
         var cls = sb.ToString();
-        return cls is "Progman" or "WorkerW" or "SHELLDLL_DefView";
+        return cls is "Progman" or "WorkerW" or "SHELLDLL_DefView"
+               or "SysListView32"          // 桌面图标列表
+               or "Shell_TrayWnd"          // 任务栏
+               or "RainmeterMeterWindow";  // 桌面小部件覆盖层
     }
 
     /// <summary>前台窗口是否为全屏（覆盖整块屏幕，排除任务栏与本应用）。</summary>
