@@ -150,8 +150,8 @@ body {
 }
 .section-add:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-light); }
 
-/* File grid（组内 4 列） */
-.file-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+/* File grid（组内自适应列：默认 4 列，缩放/窄幅自动减列换行，不出横向滚动条） */
+.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
 .file-card {
   display: flex; flex-direction: column; align-items: center;
   padding: 10px 4px 8px 4px; border-radius: 10px; background: var(--bg-card);
