@@ -192,11 +192,14 @@ function renderGrid() {
   const grid = document.getElementById('fileGrid');
   const frag = document.createDocumentFragment();
 
-  // Tab kind 过滤 + 名称过滤（P10：跨抽屉子串、忽略大小写）
+  // Tab kind 过滤 + 搜索（P10：文件名或抽屉路径；抽屉命中则其全部直属文件随行可见，
+  // 后代路径天然包含祖先路径 -> 整个子树命中）
   const q = filterText.trim().toLowerCase();
   const items = allItems
     .filter(it => matchesTab(it, currentTab))
-    .filter(it => !q || it.name.toLowerCase().includes(q));
+    .filter(it => !q
+      || it.name.toLowerCase().includes(q)
+      || (it.drawer && it.drawer.toLowerCase().includes(q)));
   const groups = new Map();   // 抽屉路径 | null(未分类) -> 条目[]
   for (const it of items) {
     const key = it.drawer ?? null;
@@ -212,17 +215,19 @@ function renderGrid() {
     if (!children.has(parent)) children.set(parent, []);
     children.get(parent).push(p);
   }
-  // 有可见内容的抽屉路径及其全部祖先（分类视图/过滤中只显示这些组）
+  // 可见抽屉：有可见内容的路径及其全部祖先；搜索时抽屉路径命中的也可见（含祖先链）
   const active = new Set();
-  for (const key of groups.keys()) {
-    let p = key;
+  const markChain = p => {
     while (p) {
       active.add(p);
       const i = p.lastIndexOf('/');
       p = i < 0 ? '' : p.slice(0, i);
     }
-  }
-  const showAll = currentTab === 'all' && !q;   // 全部视图（未过滤）恒显示所有抽屉
+  };
+  for (const key of groups.keys()) markChain(key);
+  if (q) for (const p of allDrawers)
+    if (p.toLowerCase().includes(q)) markChain(p);
+  const showAll = currentTab === 'all' && !q;   // 全部视图（未搜索）恒显示所有抽屉
 
   const buildLevel = parent => {
     const out = [];
