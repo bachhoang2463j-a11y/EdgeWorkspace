@@ -10,6 +10,7 @@ function post(type, payload = {}) {
 }
 
 let allItems = [];      // 最新文件条目（C# 推送）
+let allDrawers = [];    // 抽屉清单（根目录子文件夹，C# 推送，名称序）
 let currentTab = 'all';
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -30,7 +31,7 @@ function setTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   const isBoard = tab === 'whiteboard';
-  document.getElementById('fileGrid').style.display = isBoard ? 'none' : 'grid';
+  document.getElementById('fileGrid').style.display = isBoard ? 'none' : 'flex';
   document.getElementById('noteWall').style.display = isBoard ? 'grid' : 'none';
   updateBadges();
   if (!isBoard) renderGrid();
@@ -81,72 +82,145 @@ function fmtSize(bytes) {
   return (i === 0 ? v : v.toFixed(1)) + ' ' + units[i];
 }
 
+// ---------- 文件渲染（v2 柱1：抽屉分组） ----------
+// 抽屉 = 工作区根目录子文件夹；未分类 = 根目录散文件。折叠状态记忆在 localStorage。
+const collapsedDrawers = new Set(JSON.parse(localStorage.getItem('ews-collapsed') || '[]'));
+
 function renderGrid() {
   const grid = document.getElementById('fileGrid');
-  const items = currentTab === 'all' ? allItems : allItems.filter(it => matchesTab(it, currentTab));
   const frag = document.createDocumentFragment();
 
+  const items = currentTab === 'all' ? allItems : allItems.filter(it => matchesTab(it, currentTab));
+  const groups = new Map();   // 抽屉名 | null(未分类) -> 条目[]
   for (const it of items) {
-    const card = document.createElement('div');
-    card.className = 'file-card';
-    card.title = it.name + '\n' + it.mtime;
-
-    // P7：图片/视频直接出缩略图，读不了的格式回退图标
-    const thumb = document.createElement('div');
-    thumb.className = 'file-thumb-box';
-    const fileUrl = 'https://files.local/' + encodeURIComponent(it.name);
-    if (it.kind === 'image') {
-      const img = document.createElement('img');
-      img.src = fileUrl;
-      img.alt = it.name;
-      img.loading = 'lazy';
-      img.addEventListener('error', () => {
-        thumb.innerHTML = '<span class="kind-icon">🖼️</span>'; // heic/psd 等浏览器不认的
-      });
-      thumb.append(img);
-    } else if (it.kind === 'video') {
-      const v = document.createElement('video');
-      v.src = fileUrl + '#t=1';   // 媒体片段：直接显示第 1 秒画面
-      v.preload = 'metadata';
-      v.muted = true;
-      v.addEventListener('error', () => {
-        thumb.innerHTML = '<span class="kind-icon">🎬</span>'; // 解码不了的容器/编码
-      });
-      const play = document.createElement('span');
-      play.className = 'video-badge';
-      play.textContent = '▶';
-      thumb.append(v, play);
-    } else {
-      thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
-    }
-
-    const title = document.createElement('div');
-    title.className = 'file-title';
-    title.textContent = it.name;
-
-    const meta = document.createElement('div');
-    meta.className = 'file-meta';
-    meta.textContent = it.isFolder ? '文件夹' : fmtSize(it.size);
-
-    card.append(thumb, title, meta);
-
-    // P4 交互
-    card.addEventListener('click', () => post('openPath', { name: it.name }));
-    card.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      post('contextMenu', { name: it.name });
-    });
-    // 拖出：HTML5 拖拽只作手势检测，实际 OLE 拖放由 C# DoDragDrop 执行
-    card.draggable = true;
-    card.addEventListener('dragstart', e => {
-      e.preventDefault();
-      post('startDragOut', { name: it.name });
-    });
-
-    frag.append(card);
+    const key = it.drawer ?? null;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(it);
   }
+
+  // 抽屉分组：全部视图下空抽屉也显示（拖放目标 + 状态提示）；分类视图只显示有匹配项的组
+  for (const d of allDrawers) {
+    if (currentTab !== 'all' && !groups.has(d)) continue;
+    frag.append(buildSection(d, groups.get(d) || []));
+  }
+  // 未分类殿后
+  if (groups.has(null)) frag.append(buildSection(null, groups.get(null)));
+
+  const add = document.createElement('div');
+  add.className = 'section-add';
+  add.textContent = '＋ 新建抽屉';
+  add.title = '在工作区新建同名文件夹';
+  add.addEventListener('click', () => {
+    const name = (prompt('新抽屉名称（= 工作区文件夹名）：') || '').trim();
+    if (name) post('drawerCreate', { name });
+  });
+  frag.append(add);
+
   grid.replaceChildren(frag);
   updateBadges();
+}
+
+function buildSection(drawer, items) {
+  const key = drawer ?? '';
+  const group = document.createElement('div');
+  group.className = 'section-group' + (collapsedDrawers.has(key) ? ' collapsed' : '');
+
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  const titleBox = document.createElement('div');
+  titleBox.className = 'section-title-box';
+  titleBox.innerHTML =
+    '<svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+  const label = document.createElement('span');
+  label.textContent = drawer ?? '未分类';
+  titleBox.append(label);
+  const divider = document.createElement('div');
+  divider.className = 'section-divider-line';
+  const count = document.createElement('span');
+  count.className = 'section-count';
+  count.textContent = items.length + ' 项';
+  header.append(titleBox, divider, count);
+
+  header.addEventListener('click', () => {
+    const collapsed = group.classList.toggle('collapsed');
+    if (collapsed) collapsedDrawers.add(key); else collapsedDrawers.delete(key);
+    localStorage.setItem('ews-collapsed', JSON.stringify([...collapsedDrawers]));
+  });
+  // 抽屉横栏右键 = 该文件夹的 Shell 菜单（改名/删除走系统原生）
+  if (drawer !== null) {
+    header.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      post('contextMenu', { name: drawer, drawer: null });
+    });
+  }
+
+  const inner = document.createElement('div');
+  inner.className = 'file-grid';
+  for (const it of items) inner.append(buildFileCard(it));
+
+  group.append(header, inner);
+  return group;
+}
+
+function buildFileCard(it) {
+  const card = document.createElement('div');
+  card.className = 'file-card';
+  card.title = (it.drawer ? it.drawer + '/' : '') + it.name + '\n' + it.mtime;
+
+  // P7：图片/视频直接出缩略图，读不了的格式回退图标
+  const thumb = document.createElement('div');
+  thumb.className = 'file-thumb-box';
+  const fileUrl = (it.drawer ? 'https://files.local/' + encodeURIComponent(it.drawer) + '/' : 'https://files.local/')
+    + encodeURIComponent(it.name);
+  if (it.kind === 'image') {
+    const img = document.createElement('img');
+    img.src = fileUrl;
+    img.alt = it.name;
+    img.loading = 'lazy';
+    img.addEventListener('error', () => {
+      thumb.innerHTML = '<span class="kind-icon">🖼️</span>'; // heic/psd 等浏览器不认的
+    });
+    thumb.append(img);
+  } else if (it.kind === 'video') {
+    const v = document.createElement('video');
+    v.src = fileUrl + '#t=1';   // 媒体片段：直接显示第 1 秒画面
+    v.preload = 'metadata';
+    v.muted = true;
+    v.addEventListener('error', () => {
+      thumb.innerHTML = '<span class="kind-icon">🎬</span>'; // 解码不了的容器/编码
+    });
+    const play = document.createElement('span');
+    play.className = 'video-badge';
+    play.textContent = '▶';
+    thumb.append(v, play);
+  } else {
+    thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
+  }
+
+  const title = document.createElement('div');
+  title.className = 'file-title';
+  title.textContent = it.name;
+
+  const meta = document.createElement('div');
+  meta.className = 'file-meta';
+  meta.textContent = it.isFolder ? '文件夹' : fmtSize(it.size);
+
+  card.append(thumb, title, meta);
+
+  // P4 交互（v2：全部带 drawer 定位）
+  card.addEventListener('click', () => post('openPath', { name: it.name, drawer: it.drawer ?? null }));
+  card.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    post('contextMenu', { name: it.name, drawer: it.drawer ?? null });
+  });
+  // 拖出：HTML5 拖拽只作手势检测，实际 OLE 拖放由 C# DoDragDrop 执行
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    e.preventDefault();
+    post('startDragOut', { name: it.name, drawer: it.drawer ?? null });
+  });
+
+  return card;
 }
 
 // ---------- 桥：C# -> JS ----------
@@ -157,6 +231,7 @@ bridge?.addEventListener('message', e => {
   switch (msg.type) {
     case 'files':
       allItems = msg.items || [];
+      allDrawers = msg.drawers || [];
       if (currentTab !== 'whiteboard') renderGrid(); else updateBadges();
       break;
     case 'setTab':

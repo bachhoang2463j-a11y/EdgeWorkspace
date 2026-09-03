@@ -9,12 +9,20 @@ public sealed class FileEntry
     public bool isFolder { get; init; }
     public string ext { get; init; } = "";
     public string kind { get; init; } = "other";
+    public string? drawer { get; init; }   // null=根目录散文件（未分类）；否则=所在抽屉（根目录子文件夹名）
+    public bool pinned { get; set; }       // meta.json 合并（FileMetaStore.Apply）
+    public int openCount { get; set; }
     public long size { get; init; }
     public string mtime { get; init; } = "";
 }
 
+/// <summary>扫描结果：条目 + 抽屉清单（v2 柱1 两级扫描）。</summary>
+public sealed record ScanResult(List<FileEntry> Items, List<string> Drawers);
+
 /// <summary>
 /// 扫描工作区目录并产出条目列表；kind 判定口径见 SPEC §6。
+/// 两级模型（v2 柱1）：根目录子文件夹 = 抽屉（直属文件归组，孙级文件夹以卡片呈现，
+/// 更深不递归）；根目录散文件 = 未分类。
 /// </summary>
 public static class FileScanner
 {
@@ -42,25 +50,49 @@ public static class FileScanner
     public static string KindFor(string ext) =>
         ExtToKind.TryGetValue(ext.TrimStart('.'), out var kind) ? kind : "other";
 
-    public static List<FileEntry> Scan(string path)
+    public static ScanResult Scan(string path)
     {
         var items = new List<FileEntry>();
-        if (!Directory.Exists(path)) return items;
+        var drawers = new List<string>();
+        if (!Directory.Exists(path)) return new(items, drawers);
 
         var dir = new DirectoryInfo(path);
+
+        // 根目录子文件夹 = 抽屉
         foreach (var d in dir.EnumerateDirectories())
         {
             if (d.Attributes.HasFlag(FileAttributes.Hidden)) continue;
-            items.Add(new FileEntry
+            drawers.Add(d.Name);
+            foreach (var sd in d.EnumerateDirectories())
             {
-                name = d.Name,
-                isFolder = true,
-                ext = "",
-                kind = "folder",
-                size = 0,
-                mtime = d.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
-            });
+                if (sd.Attributes.HasFlag(FileAttributes.Hidden)) continue;
+                items.Add(new FileEntry
+                {
+                    name = sd.Name,
+                    isFolder = true,
+                    ext = "",
+                    kind = "folder",
+                    drawer = d.Name,
+                    mtime = sd.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
+                });
+            }
+            foreach (var f in d.EnumerateFiles())
+            {
+                if (f.Attributes.HasFlag(FileAttributes.Hidden)) continue;
+                var ext = f.Extension.TrimStart('.');
+                items.Add(new FileEntry
+                {
+                    name = f.Name,
+                    ext = ext,
+                    kind = KindFor(ext),
+                    drawer = d.Name,
+                    size = f.Length,
+                    mtime = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
+                });
+            }
         }
+
+        // 根目录散文件 = 未分类
         foreach (var f in dir.EnumerateFiles())
         {
             if (f.Attributes.HasFlag(FileAttributes.Hidden)) continue;
@@ -68,15 +100,16 @@ public static class FileScanner
             items.Add(new FileEntry
             {
                 name = f.Name,
-                isFolder = false,
                 ext = ext,
                 kind = KindFor(ext),
                 size = f.Length,
                 mtime = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
             });
         }
-        // Rainmeter 版口径：最近修改在前
+
+        drawers.Sort(StringComparer.Ordinal);
+        // 最近修改在前（组内序 = 全局序，Rainmeter 口径）
         items.Sort((a, b) => string.CompareOrdinal(b.mtime, a.mtime));
-        return items;
+        return new(items, drawers);
     }
 }

@@ -29,6 +29,15 @@ public class MainForm : Form
     private int _parkedX;        // 完全滑出屏幕的 X
 
     private static readonly string WorkspacePath = "D:\\Workspace_Temp";
+
+    /// <summary>文件完整路径：drawer=null 为工作区根目录，否则 工作区/抽屉/文件名。</summary>
+    private static string FullPath(string? drawer, string name) =>
+        string.IsNullOrEmpty(drawer) ? Path.Combine(WorkspacePath, name)
+                                     : Path.Combine(WorkspacePath, drawer, name);
+
+    /// <summary>读取消息里的 drawer 字段（缺省/为 null 时返回 null = 根目录）。</summary>
+    private static string? GetDrawer(JsonElement root) =>
+        root.TryGetProperty("drawer", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null;
     internal static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "bridge.log");
 
@@ -261,11 +270,10 @@ public class MainForm : Form
     }
 
     /// <summary>P4: 从面板拖文件出去（OLE 源）。DoDragDrop 自带消息循环，会阻塞到松手。</summary>
-    private void StartDragOut(string name)
+    private void StartDragOut(string fullPath)
     {
-        var path = Path.Combine(WorkspacePath, name);
-        if (!File.Exists(path) && !Directory.Exists(path)) return;
-        var data = new DataObject(DataFormats.FileDrop, new[] { path });
+        if (!File.Exists(fullPath) && !Directory.Exists(fullPath)) return;
+        var data = new DataObject(DataFormats.FileDrop, new[] { fullPath });
         _dragOver = true;
         try { _web.DoDragDrop(data, DragDropEffects.Copy | DragDropEffects.Move); }
         finally
@@ -373,7 +381,13 @@ public class MainForm : Form
             if (!dir.Exists) return "missing";
             long acc = 0;
             foreach (var f in dir.EnumerateFileSystemInfos())
+            {
                 acc ^= f.Name.GetHashCode() ^ f.LastWriteTimeUtc.Ticks ^ (long)(f is FileInfo fi ? fi.Length : -1);
+                // 抽屉（根目录子文件夹）内容变化也要进签名（两级扫描，v2 柱1）
+                if (f is DirectoryInfo d)
+                    foreach (var sub in d.EnumerateFileSystemInfos())
+                        acc ^= sub.Name.GetHashCode() ^ sub.LastWriteTimeUtc.Ticks ^ (long)(sub is FileInfo sfi ? sfi.Length : -1);
+            }
             return acc.ToString("X");
         }
         catch { return "error"; }
@@ -391,11 +405,13 @@ public class MainForm : Form
 
     private void PushFiles()
     {
-        var items = FileScanner.Scan(WorkspacePath);
+        var result = FileScanner.Scan(WorkspacePath);
+        foreach (var it in result.Items) FileMetaStore.Apply(it);
         if (_core is null || !_bridgeReady) return;
-        var json = JsonSerializer.Serialize(new { type = "files", total = items.Count, items }, JsonOpts);
+        var json = JsonSerializer.Serialize(
+            new { type = "files", total = result.Items.Count, items = result.Items, drawers = result.Drawers }, JsonOpts);
         BeginInvoke(() => _core.PostWebMessageAsJson(json));
-        Log("PushFiles: posted " + items.Count + " items");
+        Log("PushFiles: posted " + result.Items.Count + " items, " + result.Drawers.Count + " drawers");
     }
 
     private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -432,25 +448,39 @@ public class MainForm : Form
                 case "openPath":
                     {
                         var name = msg.RootElement.GetProperty("name").GetString()!;
-                        FileOps.Open(Path.Combine(WorkspacePath, name));
+                        var drawer = GetDrawer(msg.RootElement);
+                        FileOps.Open(FullPath(drawer, name));
+                        FileMetaStore.RecordOpen(drawer, name);   // 常用优先的数据积累（v2 柱2）
                         break;
                     }
                 case "revealItem":
                     {
                         var name = msg.RootElement.GetProperty("name").GetString()!;
-                        FileOps.Reveal(Path.Combine(WorkspacePath, name));
+                        FileOps.Reveal(FullPath(GetDrawer(msg.RootElement), name));
                         break;
                     }
                 case "openFolder":
                     FileOps.OpenFolder(WorkspacePath);
                     break;
+                case "drawerCreate":
+                    {
+                        // 新建抽屉 = 工作区新建同名文件夹（v2 柱1）
+                        var name = (msg.RootElement.GetProperty("name").GetString() ?? "").Trim();
+                        if (name != "" && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0)
+                        {
+                            Directory.CreateDirectory(Path.Combine(WorkspacePath, name));
+                            PushFiles();
+                        }
+                        break;
+                    }
                 case "contextMenu":
                     {
                         var name = msg.RootElement.GetProperty("name").GetString()!;
+                        var path = FullPath(GetDrawer(msg.RootElement), name);
                         _menuOpen = true;
                         BeginInvoke(() =>
                         {
-                            FileOps.ShowContextMenu(Handle, Path.Combine(WorkspacePath, name));
+                            FileOps.ShowContextMenu(Handle, path);
                             // 菜单关闭后稍等再解除（菜单命令可能还在跑）
                             Task.Delay(800).ContinueWith(_ => BeginInvoke(() => _menuOpen = false));
                         });
@@ -460,7 +490,8 @@ public class MainForm : Form
                     {
                         // 前端 mousedown 拖动开始：C# 发起 OLE 拖出
                         var name = msg.RootElement.GetProperty("name").GetString()!;
-                        BeginInvoke(() => StartDragOut(name));
+                        var path = FullPath(GetDrawer(msg.RootElement), name);
+                        BeginInvoke(() => StartDragOut(path));
                         break;
                     }
                 // ---------- P5: 白板便签 ----------

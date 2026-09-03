@@ -21,32 +21,46 @@ public static class NoteStore
 
     private static string IndexPath => Path.Combine(Dir, "index.json");
 
-    /// <summary>标题索引（id -> title）。缺失或损坏时返回空表，不影响正文。</summary>
-    private static Dictionary<string, string> LoadTitles()
+    /// <summary>便签元数据（P13 贴纸将扩展 tile: { on, x, y, w, h } 字段）。</summary>
+    public sealed class NoteMeta
+    {
+        public string title { get; set; } = "";
+    }
+
+    /// <summary>元数据索引（id -> 元数据）。旧格式（id -> 字符串）按仅标题兼容；损坏返回空表。</summary>
+    private static Dictionary<string, NoteMeta> LoadMeta()
     {
         try
         {
             if (!File.Exists(IndexPath)) return new();
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(IndexPath)) ?? new();
+            using var doc = JsonDocument.Parse(File.ReadAllText(IndexPath));
+            var map = new Dictionary<string, NoteMeta>();
+            foreach (var p in doc.RootElement.EnumerateObject())
+            {
+                map[p.Name] = p.Value.ValueKind == JsonValueKind.String
+                    ? new NoteMeta { title = p.Value.GetString() ?? "" }
+                    : JsonSerializer.Deserialize<NoteMeta>(p.Value.GetRawText()) ?? new NoteMeta();
+            }
+            return map;
         }
         catch { return new(); }
     }
 
-    private static void SaveTitles(Dictionary<string, string> titles) =>
-        File.WriteAllText(IndexPath, JsonSerializer.Serialize(titles));
+    private static void SaveMeta(Dictionary<string, NoteMeta> meta) =>
+        File.WriteAllText(IndexPath, JsonSerializer.Serialize(meta));
 
     /// <summary>全部便签，按修改时间倒序（最新在前）。</summary>
     public static List<NoteInfo> LoadAll()
     {
         EnsureDir();
-        var titles = LoadTitles();
+        var meta = LoadMeta();
         var list = new List<NoteInfo>();
         foreach (var f in new DirectoryInfo(Dir).EnumerateFiles("*.txt"))
         {
             var id = Path.GetFileNameWithoutExtension(f.Name);
             list.Add(new NoteInfo(
                 id,
-                titles.GetValueOrDefault(id, ""),
+                meta.TryGetValue(id, out var m) ? m.title : "",
                 File.ReadAllText(f.FullName),
                 f.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
         }
@@ -59,9 +73,10 @@ public static class NoteStore
     {
         var p = PathFor(id);
         if (!File.Exists(p)) return null;
+        var meta = LoadMeta();
         return new NoteInfo(
             id,
-            LoadTitles().GetValueOrDefault(id, ""),
+            meta.TryGetValue(id, out var m) ? m.title : "",
             File.ReadAllText(p),
             File.GetLastWriteTime(p).ToString("yyyy-MM-dd HH:mm"));
     }
@@ -90,9 +105,10 @@ public static class NoteStore
     /// <summary>改名：写标题索引并刷新 mtime（顶到最前）。</summary>
     public static void Rename(string id, string title)
     {
-        var titles = LoadTitles();
-        titles[id] = title;
-        SaveTitles(titles);
+        var meta = LoadMeta();
+        if (!meta.TryGetValue(id, out var m)) meta[id] = m = new NoteMeta();
+        m.title = title;
+        SaveMeta(meta);
         var p = PathFor(id);
         if (File.Exists(p)) File.SetLastWriteTimeUtc(p, DateTime.UtcNow);
     }
@@ -101,7 +117,7 @@ public static class NoteStore
     {
         var p = PathFor(id);
         if (File.Exists(p)) File.Delete(p);
-        var titles = LoadTitles();
-        if (titles.Remove(id)) SaveTitles(titles);
+        var meta = LoadMeta();
+        if (meta.Remove(id)) SaveMeta(meta);
     }
 }

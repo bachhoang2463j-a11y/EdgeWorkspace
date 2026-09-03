@@ -19,7 +19,7 @@ public sealed class WorkspaceWatcher : IDisposable
         _debounce.Tick += (_, _) => { _debounce.Stop(); _onChanged(); };
 
         _fsw.Path = path;
-        _fsw.IncludeSubdirectories = false;
+        _fsw.IncludeSubdirectories = true;   // v2 柱1：抽屉（子文件夹）内容变化也要触发
         _fsw.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
                           | NotifyFilters.LastWrite | NotifyFilters.Size;
         _fsw.Created += (_, _) => Debounce();
