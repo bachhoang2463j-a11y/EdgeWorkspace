@@ -25,8 +25,47 @@ window.addEventListener('DOMContentLoaded', () => {
   bindSearch();
   bindLifecycle();
   bindSettings();
+  bindHotkey();
   post('ready');
 });
+
+// ---------- P13: 呼出快捷键自定义（录制式） ----------
+let recordingHotkey = false;
+
+function stopHotkeyRecord() {
+  recordingHotkey = false;
+  const btn = document.getElementById('btnHotkey');
+  btn.classList.remove('recording');
+  btn.textContent = btn.dataset.combo || 'Ctrl+Shift+Z';
+}
+
+function bindHotkey() {
+  document.getElementById('btnHotkey').addEventListener('click', () => {
+    recordingHotkey = !recordingHotkey;
+    const btn = document.getElementById('btnHotkey');
+    btn.classList.toggle('recording', recordingHotkey);
+    btn.textContent = recordingHotkey ? '按下新组合…' : btn.dataset.combo;
+  });
+  // capture 阶段拦截：录制优先于一切按键处理（含 C# 键态回传的动作）
+  window.addEventListener('keydown', e => {
+    if (!recordingHotkey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') { stopHotkeyRecord(); return; }
+    if (!(e.ctrlKey || e.altKey || e.metaKey)) return;   // 必须含 Ctrl/Alt/Win（Shift 单独无效）
+    let vk = 0, keyText = '';
+    if (/^F(1[0-2]|[1-9])$/.test(e.key)) { vk = 0x6F + parseInt(e.key.slice(1), 10); keyText = e.key; }
+    else if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) { vk = e.key.toUpperCase().charCodeAt(0); keyText = e.key.toUpperCase(); }
+    else return;
+    const mods = [e.ctrlKey && 'ctrl', e.altKey && 'alt', e.shiftKey && 'shift', e.metaKey && 'win'].filter(Boolean);
+    const text = [...mods, keyText].join('+');
+    recordingHotkey = false;
+    const btn = document.getElementById('btnHotkey');
+    btn.classList.remove('recording');
+    btn.textContent = '注册中…';
+    post('setHotkey', { mods, vk, text });
+  }, true);
+}
 
 // ---------- P12: 设置面板绑定 ----------
 function bindSettings() {
@@ -803,7 +842,8 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'delDetected': {
-      // Del 键：选中组优先，否则光标下的文件 -> 系统回收站。输入框聚焦时不拦截。
+      // Del 键：选中组优先，否则光标下的文件 -> 系统回收站。输入框聚焦/录制快捷键时不拦截。
+      if (recordingHotkey) break;
       const focus = document.activeElement;
       if (focus instanceof Element && focus.closest('input, textarea, select')) break;
       let files = null;
@@ -819,8 +859,9 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'pasteDetected': {
-      // 光标在面板时的 Ctrl+V（C# 键态检测，无需焦点）。输入框聚焦时不拦截正常粘贴；
+      // 光标在面板时的 Ctrl+V（C# 键态检测，无需焦点）。输入框聚焦/录制快捷键时不拦截；
       // 文件视图 = 收纳到光标下的抽屉分组（无分组=未分类），白板页 = 直接建便签。
+      if (recordingHotkey) break;
       const focus = document.activeElement;
       if (focus instanceof Element && focus.closest('input, textarea, select')) break;
       if (currentTab === 'whiteboard') { post('clipboardToNote'); break; }
@@ -831,7 +872,8 @@ bridge?.addEventListener('message', e => {
     }
     case 'copyDetected': {
       // Ctrl+C 复制光标下的文件（FileDrop，可粘贴到资源管理器/面板）。
-      // 输入框聚焦时正常复制文本；选择模式且该卡在选区内 = 整组。
+      // 输入框聚焦时正常复制文本；选择模式且该卡在选区内 = 整组；录制快捷键时不拦截。
+      if (recordingHotkey) break;
       const focus = document.activeElement;
       if (focus instanceof Element && focus.closest('input, textarea, select')) break;
       const el = document.elementFromPoint(msg.x, msg.y);
@@ -862,6 +904,18 @@ bridge?.addEventListener('message', e => {
       document.documentElement.dataset.theme = msg.theme || 'white';
       document.getElementById('setTheme').value = msg.theme || 'white';
       break;
+    case 'hotkeyResult':
+      {
+        const btn = document.getElementById('btnHotkey');
+        if (msg.ok) {
+          btn.dataset.combo = msg.text;
+          btn.textContent = msg.text;
+        } else {
+          btn.textContent = '⚠ 无效或被占用';
+          setTimeout(() => { btn.textContent = btn.dataset.combo || 'Ctrl+Shift+Z'; }, 1600);
+        }
+        break;
+      }
     case 'config': {
       // 设置项（C# ready/refresh 推送）；含折叠状态/排序模式/手动抽屉序/生命周期 -> 应用
       appConfig = msg.config || {};
@@ -874,6 +928,15 @@ bridge?.addEventListener('message', e => {
       document.getElementById('setStaleDays').value = String(appConfig.staleDays || 14);
       document.getElementById('setAutostart').checked = !!appConfig.autostart;
       document.getElementById('setWorkspacePath').value = appConfig.workspacePath || '';
+      // 呼出快捷键显示回填（config 存 mods 数组 + VK 码）
+      {
+        const hm = (appConfig.hotkeyMods || []).length ? appConfig.hotkeyMods : ['ctrl', 'shift'];
+        const hk = appConfig.hotkeyKey || 0x5A;
+        const kt = (hk >= 0x70 && hk <= 0x7B) ? 'F' + (hk - 0x6F) : String.fromCharCode(hk);
+        const combo = [...hm.map(m => m[0].toUpperCase() + m.slice(1)), kt].join('+');
+        document.getElementById('btnHotkey').dataset.combo = combo;
+        document.getElementById('btnHotkey').textContent = combo;
+      }
       if (currentTab !== 'whiteboard') renderGrid();
       break;
     }

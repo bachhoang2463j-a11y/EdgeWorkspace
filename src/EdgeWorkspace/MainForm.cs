@@ -116,7 +116,7 @@ public class MainForm : Form
             _pasteWatch.Tick += (_, _) => PasteWatchTick();             // P9: 面板可见期 Ctrl+V 检测
             _edgeWatch.Start();
             _pasteWatch.Start();   // 启动即停靠可见
-            Native.RegisterAppHotKey(Handle);
+            ApplyHotkeyFromConfig();
 
             // P4/P7: 拖入收纳走自定义 OLE 放置目标（见 ApplyFileDropTargets），
             // 不用窗体 AllowDrop——OLE 不沿父链上溯，WebView2 盖住窗体后它收不到事件。
@@ -445,6 +445,28 @@ public class MainForm : Form
     {
         if (_acrylicOn) return;   // 亚克力激活时不铺底色，让 DWM 模糊透出
         base.OnPaintBackground(e);
+    }
+
+    // ---------- P13: 呼出快捷键自定义 ----------
+
+    private uint _hkMods = Native.MOD_CONTROL | Native.MOD_SHIFT;
+    private int _hkVk = 0x5A;   // VK_Z
+
+    private static uint ModFlags(IEnumerable<string> mods)
+    {
+        uint f = 0;
+        foreach (var m in mods)
+            f |= m switch { "alt" => 1u, "ctrl" => 2u, "shift" => 4u, "win" => 8u, _ => 0u };
+        return f;
+    }
+
+    /// <summary>按 config 注册呼出热键（空配置 = 默认 Ctrl+Shift+Z）。</summary>
+    private void ApplyHotkeyFromConfig()
+    {
+        var c = ConfigStore.Current;
+        _hkVk = c.hotkeyKey > 0 ? c.hotkeyKey : 0x5A;
+        _hkMods = c.hotkeyMods.Count > 0 ? ModFlags(c.hotkeyMods) : Native.MOD_CONTROL | Native.MOD_SHIFT;
+        Native.RegisterAppHotKey(Handle, _hkMods, (uint)_hkVk);
     }
 
     // ---------- P12: 工作区热切换 / 开机自启 ----------
@@ -924,6 +946,40 @@ public class MainForm : Form
                                 }
                             }
                         });
+                        break;
+                    }
+                case "setHotkey":
+                    {
+                        // P13: 呼出快捷键自定义——试注册新组合，失败回滚旧组合
+                        var mods = msg.RootElement.GetProperty("mods").EnumerateArray()
+                            .Select(x => x.GetString() ?? "").ToList();
+                        var vk = msg.RootElement.GetProperty("vk").GetInt32();
+                        var text = msg.RootElement.GetProperty("text").GetString() ?? "";
+                        var newMods = ModFlags(mods);
+                        if (vk <= 0 || (newMods & 0x0Bu) == 0)
+                        {
+                            PostToJs(new { type = "hotkeyResult", ok = false, text });   // 必须含 Ctrl/Alt/Win
+                            break;
+                        }
+                        Native.UnregisterAppHotKey(Handle);
+                        if (Native.RegisterAppHotKey(Handle, newMods, (uint)vk))
+                        {
+                            _hkMods = newMods;
+                            _hkVk = vk;
+                            ConfigStore.Update(c =>
+                            {
+                                c.hotkeyMods = mods;
+                                c.hotkeyKey = vk;
+                            });
+                            PostToJs(new { type = "hotkeyResult", ok = true, text });
+                            Log("hotkey -> " + text);
+                        }
+                        else
+                        {
+                            Native.RegisterAppHotKey(Handle, _hkMods, (uint)_hkVk);   // 回滚
+                            PostToJs(new { type = "hotkeyResult", ok = false, text });
+                            Log("hotkey register FAILED: " + text);
+                        }
                         break;
                     }
                 case "pickFolder":

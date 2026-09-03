@@ -14,6 +14,8 @@ public sealed class AppConfig
     public bool autostart { get; set; }             // 开机自启（启动时从注册表回读真实状态）
     public string theme { get; set; } = "white";    // P13 皮肤：white | acrylic
     public Dictionary<string, string> drawerIcons { get; set; } = new();   // 抽屉 emoji 标记（路径 -> emoji）
+    public List<string> hotkeyMods { get; set; } = new();   // P13 呼出快捷键修饰键（ctrl/alt/shift/win；空=默认 Ctrl+Shift）
+    public int hotkeyKey { get; set; }                      // 主键 VK 码（0=默认 Z）
 }
 
 /// <summary>配置读写。损坏时回退默认值（不抛）。</summary>

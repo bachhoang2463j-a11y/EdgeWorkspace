@@ -397,13 +397,12 @@ body {
 .file-card:hover .card-link { opacity: 1; }
 .card-link:hover { background: #fff; color: var(--primary); }
 
-/* Footer（P12：中簇 = 过期计数 + 一键归档 + 归档展开） */
+/* Footer（P13：只留过期计数 + 归档，居中） */
 .drawer-footer {
   padding: 6px 12px; background: var(--bg-panel); border-top: 1px solid var(--border-color);
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   font-size: 11px; color: var(--text-sub); flex-shrink: 0; position: relative; z-index: 65;
 }
-.footer-action-text { color: var(--primary); font-weight: 600; white-space: nowrap; }
 .footer-mid { display: flex; align-items: center; gap: 8px; }
 .footer-stale { color: var(--text-muted); white-space: nowrap; }
 .footer-stale b { color: var(--sticky-btn-primary); }
@@ -458,6 +457,13 @@ body {
   user-select: text;
 }
 .settings-input:focus { border-color: var(--primary); }
+
+/* P13: 快捷键录制按钮 */
+#btnHotkey.recording {
+  border-color: var(--primary); color: var(--primary);
+  animation: hkPulse 1s ease infinite;
+}
+@keyframes hkPulse { 50% { opacity: .55; } }
 
 /* P9: 批量选择操作条（flex 子项，显示时压缩内容区，无遮挡） */
 .select-bar {

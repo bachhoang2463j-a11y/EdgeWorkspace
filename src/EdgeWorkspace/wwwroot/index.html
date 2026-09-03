@@ -120,6 +120,13 @@
           <div class="settings-group-title">系统</div>
           <div class="settings-row">
             <div class="settings-label">
+              <div class="settings-label-main">呼出面板快捷键</div>
+              <div class="settings-label-sub">点击后按下新组合（须含 Ctrl 或 Alt），Esc 取消</div>
+            </div>
+            <button class="sb-btn" id="btnHotkey" data-combo="Ctrl+Shift+Z">Ctrl+Shift+Z</button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
               <div class="settings-label-main">开机自启</div>
               <div class="settings-label-sub">写入当前用户注册表 Run 键</div>
             </div>
@@ -158,15 +165,13 @@
       <div class="archive-list" id="archiveList"></div>
     </div>
 
-    <!-- 底部状态栏（P12：中簇 = 过期计数 + 一键归档 + 归档展开） -->
+    <!-- 底部状态栏（P13：只留过期计数 + 归档，操作说明移除） -->
     <div class="drawer-footer">
-      <span class="footer-action-text">拖入文件 = 移入工作区</span>
       <span class="footer-mid">
         <span class="footer-stale" id="staleInfo" hidden>⏳ <b id="staleCount">0</b> 项超过 <span id="staleDaysText">14</span> 天</span>
         <button class="footer-btn" id="btnArchiveAll" hidden>一键归档</button>
         <button class="footer-btn footer-btn-arch" id="btnArchivePanel" title="展开归档">归档 ▲</button>
       </span>
-      <span>Ctrl+Shift+Z 唤出 · 滚轮翻页 · 右键菜单</span>
     </div>
   </div>
 

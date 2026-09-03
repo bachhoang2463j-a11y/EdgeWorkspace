@@ -195,9 +195,9 @@ internal static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetClassNameW")]
     private static extern int GetClassName(IntPtr h, System.Text.StringBuilder sb, int max);
 
-    public static bool RegisterAppHotKey(IntPtr h) =>
-        RegisterHotKey(h, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT, VK_Z);
+    public static bool RegisterAppHotKey(IntPtr h, uint mods, uint vk) =>
+        RegisterHotKey(h, HOTKEY_ID, mods, vk);
 
-    public static bool UnregisterAppHotKey(IntPtr h) =>
+    public static void UnregisterAppHotKey(IntPtr h) =>
         UnregisterHotKey(h, HOTKEY_ID);
 }
