@@ -57,11 +57,14 @@ EdgeWorkspace/
   "size": 25090, "mtime": "2026-09-03 10:27" }
 ```
 
-**两级扫描（v2 柱1，P8）**：工作区根目录的每个子文件夹 = 一个抽屉（`drawers` 随 files
-消息推送，按名称序）；抽屉内直属文件归该抽屉组，抽屉内的子文件夹以文件夹卡片呈现，
-更深不递归；根目录散文件 = 未分类组。所有指向文件的消息（`openPath/revealItem/
-contextMenu/startDragOut`）都带 `drawer` 参数，路径 = `工作区/抽屉/文件名`。
-缩略图 URL 为 `files.local/<抽屉>/<文件名>`（逐段 encodeURIComponent）。
+**两级扫描（v2 柱1，P8；P10 升级为递归）**：任何层级的文件夹都是抽屉——`drawers` 随
+files 消息推送**相对路径清单**（"父/子"，'/' 分隔，按名称序）；直属文件归其所在分组；
+隐藏与重解析点（符号链接/junction，防循环）跳过；文件夹不再有条目级卡片，一律为分组。
+分组渲染为嵌套 section-group（次级缩进 14px/层，独立折叠记忆，次级抽屉在前、文件网格
+在后，资源管理器习惯）。所有指向文件的消息（`openPath/revealItem/contextMenu/
+startDragOut/pinFile/moveFiles/deleteFiles`）的 `drawer` 参数均为路径语义，
+路径 = `工作区/抽屉路径/文件名`（FullPath 校验不越出工作区）。
+缩略图 URL 为 `files.local/<抽屉路径逐段编码>/<文件名>`。
 
 `kind` 判定口径见 §6。
 
@@ -223,7 +226,7 @@ C# → JS（`PostWebMessageAsJson`）：
 
 | kind | 扩展名 |
 |---|---|
-| folder | 目录 |
+| folder | （v2 起文件夹一律为抽屉分组，不再有条目级 folder 条目） |
 | doc | txt log md … pdf js ts py json xml html css c cs 等文本/文档 |
 | image | jpg jpeg png gif bmp webp tif tiff ico svg psd heic |
 | video | mp4 mkv avi mov wmv flv webm m4v rmvb |
@@ -232,9 +235,8 @@ C# → JS（`PostWebMessageAsJson`）：
 | app | exe msi bat cmd lnk dll appx |
 | other | 其余 |
 
-前端 Tab：全部 / 图片 / 视频 / 文档 / 白板（v2：抽屉即根目录子文件夹，独立「文件夹」
-Tab 已移除；抽屉内的子文件夹卡片仍为 folder kind）。
-`folder` kind 保留给抽屉内子文件夹卡片（点击打开、右键 Shell 菜单）。
+前端 Tab：全部 / 图片 / 视频 / 文档 / 白板（v2：抽屉即文件夹，独立「文件夹」Tab 已移除；
+文件夹一律渲染为嵌套抽屉分组，无条目级卡片）。
 
 缩略图（P7）：C# 把工作区映射为 `files.local` 虚拟主机；图片用 `<img loading="lazy">`
 直载；视频用 `<video preload="metadata" src="...#t=1">` 显示第 1 秒帧 + ▶ 徽标；

@@ -125,7 +125,9 @@ body {
 .section-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .section-count { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 .section-divider-line { flex: 1; height: 1px; background: var(--border-color); margin: 0 10px; }
-.section-group.collapsed .file-grid { display: none; }
+/* 分组体：次级抽屉（缩进嵌套）在前 + 本组文件网格；折叠时整体隐藏 */
+.section-body { display: flex; flex-direction: column; gap: 10px; }
+.section-group.collapsed .section-body { display: none; }
 .section-header.drop-target { background: var(--primary-light); }
 .section-header.drop-target .section-title-box { color: var(--primary); }
 .section-add {

@@ -9,20 +9,20 @@ public sealed class FileEntry
     public bool isFolder { get; init; }
     public string ext { get; init; } = "";
     public string kind { get; init; } = "other";
-    public string? drawer { get; init; }   // null=根目录散文件（未分类）；否则=所在抽屉（根目录子文件夹名）
+    public string? drawer { get; init; }   // null=根目录散文件（未分类）；否则=所在抽屉的相对路径（"父/子"，'/' 分隔）
     public bool pinned { get; set; }       // meta.json 合并（FileMetaStore.Apply）
     public int openCount { get; set; }
     public long size { get; init; }
     public string mtime { get; init; } = "";
 }
 
-/// <summary>扫描结果：条目 + 抽屉清单（v2 柱1 两级扫描）。</summary>
+/// <summary>扫描结果：条目 + 抽屉路径清单（含所有层级）。</summary>
 public sealed record ScanResult(List<FileEntry> Items, List<string> Drawers);
 
 /// <summary>
 /// 扫描工作区目录并产出条目列表；kind 判定口径见 SPEC §6。
-/// 两级模型（v2 柱1）：根目录子文件夹 = 抽屉（直属文件归组，孙级文件夹以卡片呈现，
-/// 更深不递归）；根目录散文件 = 未分类。
+/// 递归模型（v2 柱1）：任何层级的文件夹都是抽屉（分组），直属文件归该分组；
+/// 隐藏与重解析点（符号链接/junction，防循环）跳过。文件夹不再有条目级卡片。
 /// </summary>
 public static class FileScanner
 {
@@ -54,29 +54,26 @@ public static class FileScanner
     {
         var items = new List<FileEntry>();
         var drawers = new List<string>();
-        if (!Directory.Exists(path)) return new(items, drawers);
+        if (Directory.Exists(path))
+            Walk(new DirectoryInfo(path), "");
 
-        var dir = new DirectoryInfo(path);
+        drawers.Sort(StringComparer.Ordinal);
+        // 最近修改在前（组内序 = 全局序，Rainmeter 口径）
+        items.Sort((a, b) => string.CompareOrdinal(b.mtime, a.mtime));
+        return new(items, drawers);
 
-        // 根目录子文件夹 = 抽屉
-        foreach (var d in dir.EnumerateDirectories())
+        // 递归：文件夹 -> 抽屉路径；直属文件 -> 归当前分组
+        void Walk(DirectoryInfo dir, string rel)
         {
-            if (d.Attributes.HasFlag(FileAttributes.Hidden)) continue;
-            drawers.Add(d.Name);
-            foreach (var sd in d.EnumerateDirectories())
+            foreach (var d in dir.EnumerateDirectories())
             {
-                if (sd.Attributes.HasFlag(FileAttributes.Hidden)) continue;
-                items.Add(new FileEntry
-                {
-                    name = sd.Name,
-                    isFolder = true,
-                    ext = "",
-                    kind = "folder",
-                    drawer = d.Name,
-                    mtime = sd.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
-                });
+                if (d.Attributes.HasFlag(FileAttributes.Hidden)) continue;
+                if (d.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;   // 符号链接/junction：不跟随，防循环
+                var dRel = rel == "" ? d.Name : rel + "/" + d.Name;
+                drawers.Add(dRel);
+                Walk(d, dRel);
             }
-            foreach (var f in d.EnumerateFiles())
+            foreach (var f in dir.EnumerateFiles())
             {
                 if (f.Attributes.HasFlag(FileAttributes.Hidden)) continue;
                 var ext = f.Extension.TrimStart('.');
@@ -85,31 +82,11 @@ public static class FileScanner
                     name = f.Name,
                     ext = ext,
                     kind = KindFor(ext),
-                    drawer = d.Name,
+                    drawer = rel == "" ? null : rel,
                     size = f.Length,
                     mtime = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
                 });
             }
         }
-
-        // 根目录散文件 = 未分类
-        foreach (var f in dir.EnumerateFiles())
-        {
-            if (f.Attributes.HasFlag(FileAttributes.Hidden)) continue;
-            var ext = f.Extension.TrimStart('.');
-            items.Add(new FileEntry
-            {
-                name = f.Name,
-                ext = ext,
-                kind = KindFor(ext),
-                size = f.Length,
-                mtime = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
-            });
-        }
-
-        drawers.Sort(StringComparer.Ordinal);
-        // 最近修改在前（组内序 = 全局序，Rainmeter 口径）
-        items.Sort((a, b) => string.CompareOrdinal(b.mtime, a.mtime));
-        return new(items, drawers);
     }
 }

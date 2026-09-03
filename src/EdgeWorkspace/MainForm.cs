@@ -30,10 +30,16 @@ public class MainForm : Form
 
     internal static readonly string WorkspacePath = "D:\\Workspace_Temp";
 
-    /// <summary>文件完整路径：drawer=null 为工作区根目录，否则 工作区/抽屉/文件名。</summary>
-    private static string FullPath(string? drawer, string name) =>
-        string.IsNullOrEmpty(drawer) ? Path.Combine(WorkspacePath, name)
-                                     : Path.Combine(WorkspacePath, drawer, name);
+    /// <summary>文件完整路径：drawer=null 为工作区根目录，否则 工作区/抽屉路径/文件名。
+    /// drawer 是 '/' 分隔的相对路径；校验不越出工作区。</summary>
+    private static string FullPath(string? drawer, string name)
+    {
+        var rel = string.IsNullOrEmpty(drawer) ? name : drawer + "/" + name;
+        var full = Path.GetFullPath(Path.Combine(WorkspacePath, rel));
+        if (!full.StartsWith(WorkspacePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("路径越界: " + rel);
+        return full;
+    }
 
     /// <summary>读取消息里的 drawer 字段（缺省/为 null 时返回 null = 根目录）。</summary>
     private static string? GetDrawer(JsonElement root) =>
@@ -318,17 +324,18 @@ public class MainForm : Form
 
     // ---------- P10: 抽屉改名（文件夹重命名 + 数据迁移） ----------
 
-    /// <summary>抽屉改名：目录重命名；meta.json 键前缀与 config 折叠状态跟随，config 重推同步前端。</summary>
+    /// <summary>抽屉改名（路径语义）：目录重命名；meta.json 键前缀与折叠状态（含后代）跟随，config 重推。</summary>
     private void RenameDrawer(string from, string to)
     {
         if (from == "" || to == "" || from == to) return;
-        if (to.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        // 路径分段校验（'/' 分隔，逐段按文件名合法性）
+        if (!to.Split('/').All(s => s != "" && s.IndexOfAny(Path.GetInvalidFileNameChars()) < 0))
         {
             Log("drawerRename: 非法名称「" + to + "」");
             return;
         }
-        var src = Path.Combine(WorkspacePath, from);
-        var dest = Path.Combine(WorkspacePath, to);
+        var src = Path.Combine(WorkspacePath, from.Replace('/', Path.DirectorySeparatorChar));
+        var dest = Path.Combine(WorkspacePath, to.Replace('/', Path.DirectorySeparatorChar));
         if (!Directory.Exists(src) || File.Exists(dest) || Directory.Exists(dest))
         {
             Log("drawerRename: 源不存在或目标已存在「" + to + "」");
@@ -337,11 +344,16 @@ public class MainForm : Form
         try
         {
             Directory.Move(src, dest);
-            FileMetaStore.MigrateDrawer(from, to);   // 置顶/常用统计跟随
+            FileMetaStore.MigrateDrawer(from, to);   // 置顶/常用统计跟随（含后代键前缀）
             ConfigStore.Update(c =>
             {
                 for (var i = 0; i < c.collapsedDrawers.Count; i++)
-                    if (c.collapsedDrawers[i] == from) c.collapsedDrawers[i] = to;   // 折叠状态跟随
+                {
+                    var k = c.collapsedDrawers[i];
+                    if (k == from) c.collapsedDrawers[i] = to;
+                    else if (k.StartsWith(from + "/", StringComparison.Ordinal))
+                        c.collapsedDrawers[i] = to + "/" + k[(from.Length + 1)..];   // 后代折叠状态跟随
+                }
             });
             _lastSignature = ComputeSignature();
             PushFiles();
@@ -558,15 +570,20 @@ public class MainForm : Form
             var dir = new DirectoryInfo(WorkspacePath);
             if (!dir.Exists) return "missing";
             long acc = 0;
-            foreach (var f in dir.EnumerateFileSystemInfos())
-            {
-                acc ^= f.Name.GetHashCode() ^ f.LastWriteTimeUtc.Ticks ^ (long)(f is FileInfo fi ? fi.Length : -1);
-                // 抽屉（根目录子文件夹）内容变化也要进签名（两级扫描，v2 柱1）
-                if (f is DirectoryInfo d)
-                    foreach (var sub in d.EnumerateFileSystemInfos())
-                        acc ^= sub.Name.GetHashCode() ^ sub.LastWriteTimeUtc.Ticks ^ (long)(sub is FileInfo sfi ? sfi.Length : -1);
-            }
+            WalkSig(dir);
             return acc.ToString("X");
+
+            // 递归签名（与 FileScanner 同口径：跳过隐藏与重解析点，v2 柱1 嵌套抽屉）
+            void WalkSig(DirectoryInfo d)
+            {
+                foreach (var f in d.EnumerateFileSystemInfos())
+                {
+                    acc ^= f.Name.GetHashCode() ^ f.LastWriteTimeUtc.Ticks ^ (long)(f is FileInfo fi ? fi.Length : -1);
+                    if (f is DirectoryInfo sub && !sub.Attributes.HasFlag(FileAttributes.Hidden)
+                        && !sub.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                        WalkSig(sub);
+                }
+            }
         }
         catch { return "error"; }
     }

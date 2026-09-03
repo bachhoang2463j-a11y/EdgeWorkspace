@@ -197,22 +197,45 @@ function renderGrid() {
   const items = allItems
     .filter(it => matchesTab(it, currentTab))
     .filter(it => !q || it.name.toLowerCase().includes(q));
-  const groups = new Map();   // 抽屉名 | null(未分类) -> 条目[]
+  const groups = new Map();   // 抽屉路径 | null(未分类) -> 条目[]
   for (const it of items) {
     const key = it.drawer ?? null;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(it);
   }
 
-  // 抽屉分组：全部视图下空抽屉也显示（拖放目标 + 状态提示）；分类视图/过滤中只显示有匹配项的组
-  for (const d of allDrawers) {
-    const g = groups.get(d) || [];
-    if (currentTab !== 'all' && !groups.has(d)) continue;
-    if (q && g.length === 0) continue;
-    frag.append(buildSection(d, sortItems(g)));
+  // 抽屉树（v2：递归嵌套）：allDrawers 是路径清单（"父/子"），按父路径归拢
+  const children = new Map();   // '' | 父路径 -> [子路径]
+  for (const p of allDrawers) {
+    const i = p.lastIndexOf('/');
+    const parent = i < 0 ? '' : p.slice(0, i);
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(p);
   }
+  // 有可见内容的抽屉路径及其全部祖先（分类视图/过滤中只显示这些组）
+  const active = new Set();
+  for (const key of groups.keys()) {
+    let p = key;
+    while (p) {
+      active.add(p);
+      const i = p.lastIndexOf('/');
+      p = i < 0 ? '' : p.slice(0, i);
+    }
+  }
+  const showAll = currentTab === 'all' && !q;   // 全部视图（未过滤）恒显示所有抽屉
+
+  const buildLevel = parent => {
+    const out = [];
+    for (const p of children.get(parent) || []) {
+      if (!showAll && !active.has(p)) continue;
+      out.push(buildSection(p, sortItems(groups.get(p) || []), buildLevel(p)));
+    }
+    return out;
+  };
+  frag.append(...buildLevel(''));
+
   // 未分类殿后
-  if (groups.has(null)) frag.append(buildSection(null, sortItems(groups.get(null))));
+  if (groups.has(null)) frag.append(buildSection(null, sortItems(groups.get(null)), []));
 
   const add = document.createElement('div');
   add.className = 'section-add';
@@ -228,11 +251,12 @@ function renderGrid() {
   updateBadges();
 }
 
-function buildSection(drawer, items) {
+function buildSection(drawer, items, subs) {
   const key = drawer ?? '';
   const group = document.createElement('div');
   group.className = 'section-group' + (collapsedDrawers.has(key) ? ' collapsed' : '');
   group.dataset.drawer = key;   // 落点命中（hitTest）依据；'' = 未分类
+  if (drawer !== null) group.style.marginLeft = ((drawer.split('/').length - 1) * 14) + 'px';   // 嵌套缩进
 
   const header = document.createElement('div');
   header.className = 'section-header';
@@ -241,12 +265,12 @@ function buildSection(drawer, items) {
   titleBox.innerHTML =
     '<svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>';
   const label = document.createElement('span');
-  label.textContent = drawer ?? '未分类';
+  label.textContent = drawer === null ? '未分类'
+    : drawer.slice(drawer.lastIndexOf('/') + 1);   // 只显示末级名（路径全名在 title）
   titleBox.append(label);
-  // P10：点击抽屉标题原地改名（= 文件夹重命名）；未分类不可改
   if (drawer !== null) {
     label.className = 'section-title-label';
-    label.title = '点击改名';
+    label.title = '点击改名（路径：' + drawer + '）';
     label.addEventListener('click', e => {
       e.stopPropagation();   // 别触发折叠
       renameDrawer(label, drawer);
@@ -264,7 +288,7 @@ function buildSection(drawer, items) {
     if (collapsed) collapsedDrawers.add(key); else collapsedDrawers.delete(key);
     post('setConfig', { key: 'collapsedDrawers', value: [...collapsedDrawers] });
   });
-  // 抽屉横栏右键 = 该文件夹的 Shell 菜单（改名/删除走系统原生）
+  // 抽屉横栏右键 = 该文件夹的 Shell 菜单（改名/删除走系统）
   if (drawer !== null) {
     header.addEventListener('contextmenu', e => {
       e.preventDefault();
@@ -272,27 +296,36 @@ function buildSection(drawer, items) {
     });
   }
 
+  // 体：次级抽屉在前（资源管理器习惯），随后本组文件网格；折叠时整体隐藏
+  const body = document.createElement('div');
+  body.className = 'section-body';
+  body.append(...subs);
   const inner = document.createElement('div');
   inner.className = 'file-grid';
   for (const it of items) inner.append(buildFileCard(it));
+  body.append(inner);
 
-  group.append(header, inner);
+  group.append(header, body);
   return group;
 }
 
-// 抽屉改名（原地输入框；Enter/blur 提交，Esc 取消）。实际重命名与数据迁移在 C# 侧。
-function renameDrawer(labelEl, drawer) {
+// 抽屉改名（原地输入框；Enter/blur 提交，Esc 取消）。编辑末级名，路径父级保持；实际重命名与数据迁移在 C# 侧。
+function renameDrawer(labelEl, drawerPath) {
+  const last = drawerPath.slice(drawerPath.lastIndexOf('/') + 1);
   const input = document.createElement('input');
   input.className = 'section-title-input';
-  input.value = drawer;
+  input.value = last;
   input.maxLength = 60;
   labelEl.replaceWith(input);
   input.focus();
   input.select();
   const commit = () => {
-    const to = input.value.trim();
+    const nm = input.value.trim();
     input.replaceWith(labelEl);
-    if (to && to !== drawer) post('drawerRename', { from: drawer, to });
+    if (nm && nm !== last) {
+      const parent = drawerPath.includes('/') ? drawerPath.slice(0, drawerPath.lastIndexOf('/') + 1) : '';
+      post('drawerRename', { from: drawerPath, to: parent + nm });
+    }
   };
   // 编辑中点击输入框不触发折叠（事件截在输入框上）
   input.addEventListener('mousedown', e => e.stopPropagation());
@@ -300,7 +333,7 @@ function renameDrawer(labelEl, drawer) {
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') input.blur();
-    if (e.key === 'Escape') { input.value = drawer; input.blur(); }
+    if (e.key === 'Escape') { input.value = last; input.blur(); }
   });
 }
 
@@ -311,11 +344,11 @@ function buildFileCard(it) {
   card.dataset.name = it.name;          // copyDetected（Ctrl+C）命中依据
   card.dataset.drawer = it.drawer ?? '';
 
-  // P7：图片/视频直接出缩略图，读不了的格式回退图标
+  // P7：图片/视频直接出缩略图，读不了的格式回退图标；抽屉路径按段编码（'/' 不转义）
   const thumb = document.createElement('div');
   thumb.className = 'file-thumb-box';
-  const fileUrl = (it.drawer ? 'https://files.local/' + encodeURIComponent(it.drawer) + '/' : 'https://files.local/')
-    + encodeURIComponent(it.name);
+  const drawerSegs = it.drawer ? it.drawer.split('/').map(encodeURIComponent).join('/') + '/' : '';
+  const fileUrl = 'https://files.local/' + drawerSegs + encodeURIComponent(it.name);
   if (it.kind === 'image') {
     const img = document.createElement('img');
     img.src = fileUrl;
