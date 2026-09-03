@@ -92,6 +92,7 @@ public class MainForm : Form
             DragEnter += OnDragEnter;
             DragOver += OnDragOver;
             DragDrop += OnDragDrop;
+            DragLeave += OnDragLeave;
         };
 
         // 移开判定（600ms 宽限）
@@ -128,8 +129,10 @@ public class MainForm : Form
 
         // 面板可见时的兜底：光标既不在面板内、也不在右缘触发带 -> 收起。
         // 这是 MouseLeave 之外的保险（合成鼠标事件可能不触发 WinForms 路径）。
-        // 唤出后前 1.2s 不收（给用户把鼠标从屏幕边缘挪进面板的时间）。
+        // 唤出后前 1.2s 不收（给用户把鼠标从屏幕边缘挪进面板的时间）；
+        // 按住左键（拖拽进行中）也不收——用户可能正把文件拖向面板。
         if (Visible && !_pinned && !_dragOver && !_menuOpen && !_anim.Enabled
+            && !Native.IsMouseLeftDown()
             && (DateTime.UtcNow - _lastExpandDone).TotalMilliseconds > 1200)
         {
             var inPanel = IsSelfAt(x, y);
@@ -146,11 +149,21 @@ public class MainForm : Form
         var wa = Screen.PrimaryScreen!.WorkingArea;
         var atEdge = x >= wa.Right - EdgeZone && y > wa.Top && y < wa.Bottom;
         if (!atEdge) return;
+
+        // 拖拽中贴右缘：面板隐藏时收不到 DragEnter（右缘没有窗口可命中），
+        // 必须由这里唤出。此时右缘下方是拖拽源窗口，绕过桌面/全屏检查。
+        if (Native.IsMouseLeftDown())
+        {
+            BeginExpand();
+            SetFrontTab("all");   // 拖放视图：全部
+            return;
+        }
+
         if (Native.IsForegroundFullScreen(Handle)) return;   // 全屏应用不打扰
-        if (!Native.IsDesktopAt(x, y) && !IsSelfAt(x, y)) return; // 窗口盖住右缘时不唤出
+        if (!Native.IsDesktopAt(x, y) && !IsSelfAt(x, y)) return; // 窗口盖住右缘时不唤出（有意设计）
 
         BeginExpand();
-        // 贴边唤出（鼠标）默认展示白板；拖放唤出时 P4 会切回全部
+        // 贴边唤出（鼠标）默认展示白板；拖放唤出时上面已切到全部
         SetFrontTab("whiteboard");
     }
 
@@ -226,7 +239,12 @@ public class MainForm : Form
         if (m.Msg == WM_HOTKEY && m.WParam.ToInt64() == 0xBEEF)
         {
             if (Visible) BeginCollapse();
-            else { BeginExpand(); SetFrontTab("whiteboard"); }
+            else
+            {
+                BeginExpand();
+                SetFrontTab("whiteboard");
+                Activate();   // 无视当前焦点：抢到前台并置顶（TopMost）
+            }
             return;
         }
         base.WndProc(ref m);
@@ -261,10 +279,10 @@ public class MainForm : Form
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
         _dragOver = e.Data!.GetDataPresent(DataFormats.FileDrop);
-        // 拖放悬停时自动唤出（若隐藏）并切到【全部】
-        if (_dragOver && !Visible)
+        // 拖放悬停：唤出（若隐藏）并始终切到【全部】准备接收
+        if (_dragOver)
         {
-            BeginExpand();
+            if (!Visible) BeginExpand();
             SetFrontTab("all");
         }
         e.Effect = _dragOver ? DragDropEffects.Move : DragDropEffects.None;
@@ -272,6 +290,9 @@ public class MainForm : Form
 
     private void OnDragOver(object? sender, DragEventArgs e) =>
         e.Effect = e.Data!.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
+
+    /// <summary>拖离面板（取消/拖到别处）：解除挂起，让看门狗恢复自动收起。</summary>
+    private void OnDragLeave(object? sender, EventArgs e) => _dragOver = false;
 
     private void OnDragDrop(object? sender, DragEventArgs e)
     {

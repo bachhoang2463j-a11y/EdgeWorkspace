@@ -26,6 +26,7 @@ function bindTabs() {
 }
 
 function setTab(tab) {
+  if (tab === currentTab) return;   // C# 可能在拖拽悬停期间重复推送，幂等防闪烁
   currentTab = tab;
   document.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   const isBoard = tab === 'whiteboard';

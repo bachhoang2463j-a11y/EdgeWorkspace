@@ -17,6 +17,11 @@ internal static class Native
     private static extern bool GetCursorPos(out POINT pt);
 
     [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vk);
+
+    private const int VK_LBUTTON = 0x01;
+
+    [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr h, out RECT r);
 
     [DllImport("user32.dll")]
@@ -43,6 +48,9 @@ internal static class Native
         GetCursorPos(out var pt);
         return (pt.X, pt.Y);
     }
+
+    /// <summary>左键当前是否按住（OLE 拖拽期间保持为真）。</summary>
+    public static bool IsMouseLeftDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 
     /// <summary>
     /// 点下方是否可视为"桌面暴露"：桌面本身（Progman/WorkerW）、桌面图标列表，
