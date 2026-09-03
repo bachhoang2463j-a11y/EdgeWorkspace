@@ -347,13 +347,18 @@ public class MainForm : Form
             FileMetaStore.MigrateDrawer(from, to);   // 置顶/常用统计跟随（含后代键前缀）
             ConfigStore.Update(c =>
             {
-                for (var i = 0; i < c.collapsedDrawers.Count; i++)
+                void MigrateList(List<string> list)
                 {
-                    var k = c.collapsedDrawers[i];
-                    if (k == from) c.collapsedDrawers[i] = to;
-                    else if (k.StartsWith(from + "/", StringComparison.Ordinal))
-                        c.collapsedDrawers[i] = to + "/" + k[(from.Length + 1)..];   // 后代折叠状态跟随
+                    for (var i = 0; i < list.Count; i++)
+                    {
+                        var k = list[i];
+                        if (k == from) list[i] = to;
+                        else if (k.StartsWith(from + "/", StringComparison.Ordinal))
+                            list[i] = to + "/" + k[(from.Length + 1)..];   // 后代跟随
+                    }
                 }
+                MigrateList(c.collapsedDrawers);
+                MigrateList(c.drawerOrder);   // 手动排序里的路径同样跟随
             });
             _lastSignature = ComputeSignature();
             PushFiles();
@@ -766,6 +771,9 @@ public class MainForm : Form
                                     .Select(x => x.GetString() ?? "").ToList();
                             else if (key == "sortMode")      // 排序模式（P10）
                                 c.sortMode = msg.RootElement.GetProperty("value").GetString() ?? "time";
+                            else if (key == "drawerOrder")   // 抽屉手动排序（视图序）
+                                c.drawerOrder = msg.RootElement.GetProperty("value").EnumerateArray()
+                                    .Select(x => x.GetString() ?? "").ToList();
                         });
                         break;
                     }

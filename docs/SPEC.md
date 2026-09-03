@@ -104,7 +104,7 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `deleteFiles` | `{files: [{name, drawer}]}` | 删除到**系统回收站**（选择模式「删除」/ Del 键） |
 | `clipboardSave` / `clipboardToNote` | `{drawer}` / — | Ctrl+V 收纳：文件视图粘贴到光标下抽屉分组（FileDrop 优先=资源管理器/面板复制的文件，其次截图/文本）；白板页直接建便签 |
 | `copyFiles` | `{files}` | Ctrl+C 文件写入剪贴板 FileDrop（可粘贴到资源管理器/面板，工作区内部通道） |
-| `setConfig` | `{key, value}` | 写设置项（collapsedDrawers / sortMode） |
+| `setConfig` | `{key, value}` | 写设置项（collapsedDrawers / sortMode / drawerOrder） |
 | `pinFile` | `{name, drawer, pinned}` | 文件置顶切换（meta.json + 重推） |
 | `noteCopy` | `{content}` | 便签窗口「复制」按钮：整篇写入剪贴板 |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
@@ -220,6 +220,9 @@ C# → JS（`PostWebMessageAsJson`）：
 - **排序**：时间（默认，修改时间倒序）/ 名称（zh 词典序）/ 大小 / 类型 / 常用
   （openCount 降序），**置顶恒优先**；排序在分组内生效，组序仍为抽屉名序；
   选择落 config.json（`sortMode`），前端派生（柱 3）
+- **手动排序**：抽屉横栏悬停浮现 ⠿ 把手，拖到同级横栏上/下半决定插前/插后（上线条指示）；
+  仅视图顺序（物理目录不动），落 config.json（`drawerOrder`，未列者按名序尾随）；
+  次级抽屉在各自父级内独立排序；抽屉改名时序表路径含后代一并迁移
 - **置顶**：卡片右上角星标（已置顶恒显 ★，未置顶悬停显 ☆），点击切换 ->
   `pinFile` -> FileMetaStore.SetPinned（meta.json 落盘）-> 重推 files（星标与排序即时刷新）
 

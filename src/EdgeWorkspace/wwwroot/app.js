@@ -13,8 +13,9 @@ let allItems = [];      // 最新文件条目（C# 推送）
 let allDrawers = [];    // 抽屉清单（根目录子文件夹，C# 推送，名称序）
 let currentTab = 'all';
 let appConfig = {};     // 设置项（C# config 消息推送）
-let filterText = '';    // 名称过滤（P10）
+let filterText = '';    // 搜索（P10：文件名或抽屉路径）
 let sortMode = 'time';  // 排序模式 time|name|size|kind|frequent（P10，落 config）
+let drawerOrder = [];   // 抽屉手动排序（视图序，拖 ⠿ 产生；未列者按名序补齐）
 
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
@@ -229,9 +230,14 @@ function renderGrid() {
     if (p.toLowerCase().includes(q)) markChain(p);
   const showAll = currentTab === 'all' && !q;   // 全部视图（未搜索）恒显示所有抽屉
 
+  // 抽屉排序：手动序优先（config），未列者按名序补齐（P10：拖 ⠿ 排序）
+  const orderIdx = new Map(drawerOrder.map((p, i) => [p, i]));
+  const sortDrawers = list => [...list].sort((a, b) =>
+    (orderIdx.get(a) ?? 1e9) - (orderIdx.get(b) ?? 1e9) || a.localeCompare(b, 'zh'));
+
   const buildLevel = parent => {
     const out = [];
-    for (const p of children.get(parent) || []) {
+    for (const p of sortDrawers(children.get(parent) || [])) {
       if (!showAll && !active.has(p)) continue;
       out.push(buildSection(p, sortItems(groups.get(p) || []), buildLevel(p)));
     }
@@ -269,6 +275,26 @@ function buildSection(drawer, items, subs) {
   titleBox.className = 'section-title-box';
   titleBox.innerHTML =
     '<svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+  // P10：拖动排序把手（仅视图顺序；与点击折叠/改名/右键互不冲突）
+  if (drawer !== null) {
+    const grip = document.createElement('span');
+    grip.className = 'section-grip';
+    grip.textContent = '⠿';
+    grip.title = '拖动排序（同级）';
+    grip.draggable = true;
+    grip.addEventListener('dragstart', e => {
+      dragDrawer = drawer;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', drawer);
+      group.classList.add('dragging');
+    });
+    grip.addEventListener('dragend', () => {
+      dragDrawer = null;
+      document.querySelectorAll('.dragging, .drag-over-before, .drag-over-after')
+        .forEach(el => el.classList.remove('dragging', 'drag-over-before', 'drag-over-after'));
+    });
+    titleBox.append(grip);
+  }
   const label = document.createElement('span');
   label.textContent = drawer === null ? '未分类'
     : drawer.slice(drawer.lastIndexOf('/') + 1);   // 只显示末级名（路径全名在 title）
@@ -301,6 +327,29 @@ function buildSection(drawer, items, subs) {
     });
   }
 
+  // P10：同级拖放排序（横栏为落点，上/下半决定插前/插后）
+  if (drawer !== null) {
+    const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+    header.addEventListener('dragover', e => {
+      if (!dragDrawer || dragDrawer === drawer || parentOf(dragDrawer) !== parentOf(drawer)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const r = header.getBoundingClientRect();
+      const before = e.clientY < r.top + r.height / 2;
+      header.classList.remove('drag-over-before', 'drag-over-after');
+      header.classList.add(before ? 'drag-over-before' : 'drag-over-after');
+    });
+    header.addEventListener('dragleave', () => header.classList.remove('drag-over-before', 'drag-over-after'));
+    header.addEventListener('drop', e => {
+      e.preventDefault();
+      const before = header.classList.contains('drag-over-before');
+      header.classList.remove('drag-over-before', 'drag-over-after');
+      if (!dragDrawer || dragDrawer === drawer) return;
+      reorderDrawer(dragDrawer, drawer, before);
+      dragDrawer = null;
+    });
+  }
+
   // 体：次级抽屉在前（资源管理器习惯），随后本组文件网格；折叠时整体隐藏
   const body = document.createElement('div');
   body.className = 'section-body';
@@ -312,6 +361,22 @@ function buildSection(drawer, items, subs) {
 
   group.append(header, body);
   return group;
+}
+
+// 抽屉手动排序：同级拖放插入。重排全量序（未列者保持名序尾随），落 config 即时生效。
+let dragDrawer = null;
+
+function reorderDrawer(src, target, before) {
+  const idx = new Map(drawerOrder.map((p, i) => [p, i]));
+  const current = [...allDrawers].sort((a, b) =>
+    (idx.get(a) ?? 1e9) - (idx.get(b) ?? 1e9) || a.localeCompare(b, 'zh'));
+  const order = current.filter(p => p !== src);
+  const t = order.indexOf(target);
+  if (t < 0) return;
+  order.splice(before ? t : t + 1, 0, src);
+  drawerOrder = order;
+  post('setConfig', { key: 'drawerOrder', value: order });
+  if (currentTab !== 'whiteboard') renderGrid();
 }
 
 // 抽屉改名（原地输入框；Enter/blur 提交，Esc 取消）。编辑末级名，路径父级保持；实际重命名与数据迁移在 C# 侧。
@@ -511,10 +576,11 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'config': {
-      // 设置项（C# ready/refresh 推送）；含抽屉折叠状态与排序模式 -> 应用
+      // 设置项（C# ready/refresh 推送）；含折叠状态/排序模式/手动抽屉序 -> 应用
       appConfig = msg.config || {};
       collapsedDrawers = new Set(appConfig.collapsedDrawers || []);
       sortMode = appConfig.sortMode || 'time';
+      drawerOrder = appConfig.drawerOrder || [];
       document.getElementById('sortBox').value = sortMode;
       if (currentTab !== 'whiteboard') renderGrid();
       break;

@@ -125,6 +125,18 @@ body {
 .section-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .section-count { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 .section-divider-line { flex: 1; height: 1px; background: var(--border-color); margin: 0 10px; }
+/* P10: 抽屉拖动排序把手（悬停浮现）与插入指示 */
+.section-grip {
+  cursor: grab; color: var(--text-muted); font-size: 13px; line-height: 1;
+  opacity: 0; transition: opacity .15s ease; padding: 0 1px;
+  user-select: none;
+}
+.section-header:hover .section-grip { opacity: .75; }
+.section-grip:active { cursor: grabbing; }
+.section-group.dragging { opacity: .4; }
+.section-header.drag-over-before { box-shadow: inset 0 2px 0 var(--primary); }
+.section-header.drag-over-after { box-shadow: inset 0 -2px 0 var(--primary); }
+
 /* 分组体：次级抽屉（缩进嵌套）在前 + 本组文件网格；折叠时整体隐藏 */
 .section-body { display: flex; flex-direction: column; gap: 10px; }
 .section-group.collapsed .section-body { display: none; }

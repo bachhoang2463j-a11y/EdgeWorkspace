@@ -5,8 +5,9 @@ namespace EdgeWorkspace;
 /// <summary>应用配置（exe 同目录 config.json）。P9 起接通；P12 扩展工作区路径/默认排序/开机自启。</summary>
 public sealed class AppConfig
 {
-    public List<string> collapsedDrawers { get; set; } = new();   // 折叠中的抽屉名（''=未分类）
+    public List<string> collapsedDrawers { get; set; } = new();   // 折叠中的抽屉路径（''=未分类）
     public string sortMode { get; set; } = "time";   // time | name | size | kind | frequent
+    public List<string> drawerOrder { get; set; } = new();   // 抽屉手动排序（视图序，不动物理目录；未列者按名序补齐）
 }
 
 /// <summary>配置读写。损坏时回退默认值（不抛）。</summary>
