@@ -370,6 +370,11 @@ public class MainForm : Form
                 }
                 MigrateList(c.collapsedDrawers);
                 MigrateList(c.drawerOrder);   // 手动排序里的路径同样跟随
+                // emoji 标记：字典键同样迁移
+                var oldIcons = c.drawerIcons.Where(k => k.Key == from || k.Key.StartsWith(from + "/", StringComparison.Ordinal)).ToList();
+                foreach (var kv in oldIcons) c.drawerIcons.Remove(kv.Key);
+                foreach (var kv in oldIcons)
+                    c.drawerIcons[kv.Key == from ? to : to + "/" + kv.Key[(from.Length + 1)..]] = kv.Value;
             });
             _lastSignature = ComputeSignature();
             PushFiles();
@@ -902,6 +907,12 @@ public class MainForm : Form
                             {
                                 c.theme = msg.RootElement.GetProperty("value").GetString() ?? "white";
                                 ApplyTheme(c.theme);
+                            }
+                            else if (key == "drawerIcons")   // P13: 抽屉 emoji 标记（路径 -> emoji）
+                            {
+                                c.drawerIcons.Clear();
+                                foreach (var p in msg.RootElement.GetProperty("value").EnumerateObject())
+                                    c.drawerIcons[p.Name] = p.Value.GetString() ?? "";
                             }
                             else if (key == "workspacePath") // P12 工作区路径热切换
                             {

@@ -148,7 +148,28 @@ body {
 .section-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .section-count { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 .section-divider-line { flex: 1; height: 1px; background: var(--border-color); margin: 0 10px; }
-/* P10: 抽屉拖动排序把手（箭头之前，负边距藏进横栏左内边距，悬停浮现）与插入指示 */
+/* P13: 抽屉 emoji 标记与选择器 */
+.drawer-emoji {
+  font-size: 13px; line-height: 1; cursor: pointer; border-radius: 4px; padding: 1px 2px;
+}
+.drawer-emoji.unset { opacity: 0; }
+.section-header:hover .drawer-emoji.unset { opacity: .4; }
+.emoji-picker {
+  position: absolute; z-index: 70;
+  display: grid; grid-template-columns: repeat(8, 30px); gap: 2px;
+  padding: 8px; background: var(--overlay-bg); border: 1px solid var(--border-color);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.22);
+}
+.emoji-opt {
+  width: 30px; height: 30px; border: none; background: transparent; border-radius: 6px;
+  font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-family: inherit; padding: 0;
+}
+.emoji-opt:hover { background: var(--bg-hover); }
+.emoji-opt.active { background: var(--primary-light); box-shadow: 0 0 0 1px var(--primary); }
+.emoji-none { font-size: 11px; color: var(--text-sub); width: 100%; grid-column: 1 / -1; }
+
+/* P13: 抽屉拖动排序把手（箭头之前，负边距藏进横栏左内边距，悬停浮现）与插入指示 */
 .section-grip {
   cursor: grab; color: var(--text-muted); font-size: 13px; line-height: 1;
   opacity: 0; transition: opacity .15s ease; padding: 0 1px;

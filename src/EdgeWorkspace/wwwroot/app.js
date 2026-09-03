@@ -16,6 +16,7 @@ let appConfig = {};     // 设置项（C# config 消息推送）
 let filterText = '';    // 搜索（P10：文件名或抽屉路径）
 let sortMode = 'time';  // 排序模式 time|name|size|kind|frequent（P10，落 config）
 let drawerOrder = [];   // 抽屉手动排序（视图序，拖 ⠿ 产生；未列者按名序补齐）
+let drawerIcons = {};   // 抽屉 emoji 标记（路径 -> emoji，P13）
 
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
@@ -151,12 +152,12 @@ function updateSelectBar() {
   document.getElementById('selDelete').textContent = '删除' + (n ? ' (' + n + ')' : '');
   const all = allItems.length > 0 && n >= allItems.length;
   document.getElementById('selAll').textContent = all ? '取消全选' : '全选';
-  // 移动目标下拉：未分类 + 全部抽屉
+  // 移动目标下拉：未分类 + 全部抽屉（带 emoji 标记）
   const sel = document.getElementById('selTarget');
   sel.replaceChildren(...['', ...allDrawers].map(d => {
     const opt = document.createElement('option');
     opt.value = d;
-    opt.textContent = d === '' ? '未分类' : d;
+    opt.textContent = d === '' ? '未分类' : (drawerIcons[d] ? drawerIcons[d] + ' ' : '') + d.slice(d.lastIndexOf('/') + 1);
     return opt;
   }));
 }
@@ -441,6 +442,19 @@ function buildSection(drawer, items, subs) {
   const label = document.createElement('span');
   label.textContent = drawer === null ? '未分类'
     : drawer.slice(drawer.lastIndexOf('/') + 1);   // 只显示末级名（路径全名在 title）
+  // P13：emoji 标记（选定常显；未选悬停显 🏷 占位）；点击弹选择器
+  if (drawer !== null) {
+    const icon = document.createElement('span');
+    const set = !!drawerIcons[drawer];
+    icon.className = 'drawer-emoji' + (set ? '' : ' unset');
+    icon.textContent = set ? drawerIcons[drawer] : '🏷';
+    icon.title = set ? '更换标记（' + drawerIcons[drawer] + '）' : '选择 emoji 标记';
+    icon.addEventListener('click', e => {
+      e.stopPropagation();   // 别触发折叠
+      openEmojiPicker(drawer, header);
+    });
+    titleBox.append(icon);
+  }
   titleBox.append(label);
   if (drawer !== null) {
     label.className = 'section-title-label';
@@ -537,6 +551,56 @@ function reorderDrawer(src, target, before) {
   drawerOrder = order;
   post('setConfig', { key: 'drawerOrder', value: order });
   if (currentTab !== 'whiteboard') renderGrid();
+}
+
+// ---------- P13: 抽屉 emoji 标记 ----------
+const EMOJIS = ['🚀','📦','📁','🗂️','💼','🏠','❤️','⭐','🔥','💡','🎮','📚','🧪','✏️','💰','🌐','🎬','🖼️','🎵','📄','💾','🔧','🌱','🎯','☕','🧠','👾','🏆','✈️','🛠️','📌'];
+
+function openEmojiPicker(drawer, anchor) {
+  closeEmojiPicker();
+  const picker = document.createElement('div');
+  picker.className = 'emoji-picker';
+  for (const em of EMOJIS) {
+    const b = document.createElement('button');
+    b.className = 'emoji-opt' + (drawerIcons[drawer] === em ? ' active' : '');
+    b.textContent = em;
+    b.title = em;
+    b.addEventListener('click', () => {
+      drawerIcons[drawer] = em;
+      post('setConfig', { key: 'drawerIcons', value: drawerIcons });
+      closeEmojiPicker();
+      if (currentTab !== 'whiteboard') renderGrid();
+    });
+    picker.append(b);
+  }
+  const none = document.createElement('button');
+  none.className = 'emoji-opt emoji-none';
+  none.textContent = '无标记';
+  none.addEventListener('click', () => {
+    delete drawerIcons[drawer];
+    post('setConfig', { key: 'drawerIcons', value: drawerIcons });
+    closeEmojiPicker();
+    if (currentTab !== 'whiteboard') renderGrid();
+  });
+  picker.append(none);
+
+  document.querySelector('.drawer').append(picker);
+  const r = anchor.getBoundingClientRect();
+  const dr = picker.offsetParent.getBoundingClientRect();
+  picker.style.left = Math.max(8, Math.min(r.left - dr.left, dr.width - picker.offsetWidth - 8)) + 'px';
+  picker.style.top = (r.bottom - dr.top + 6) + 'px';
+
+  const outside = e => { if (!e.target.closest('.emoji-picker')) closeEmojiPicker(); };
+  picker._outside = outside;
+  setTimeout(() => document.addEventListener('mousedown', outside), 0);
+}
+
+function closeEmojiPicker() {
+  const p = document.querySelector('.emoji-picker');
+  if (p) {
+    document.removeEventListener('mousedown', p._outside);
+    p.remove();
+  }
 }
 
 // 抽屉改名（原地输入框；Enter/blur 提交，Esc 取消）。编辑末级名，路径父级保持；实际重命名与数据迁移在 C# 侧。
@@ -795,6 +859,7 @@ bridge?.addEventListener('message', e => {
       collapsedDrawers = new Set(appConfig.collapsedDrawers || []);
       sortMode = appConfig.sortMode || 'time';
       drawerOrder = appConfig.drawerOrder || [];
+      drawerIcons = appConfig.drawerIcons || {};
       document.getElementById('sortBox').value = sortMode;
       document.getElementById('setStaleEnabled').checked = appConfig.staleEnabled !== false;
       document.getElementById('setStaleDays').value = String(appConfig.staleDays || 14);

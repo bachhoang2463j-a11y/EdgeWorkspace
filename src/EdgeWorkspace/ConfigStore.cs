@@ -13,6 +13,7 @@ public sealed class AppConfig
     public string workspacePath { get; set; } = "";  // 工作区路径（空=默认 D:\Workspace_Temp）
     public bool autostart { get; set; }             // 开机自启（启动时从注册表回读真实状态）
     public string theme { get; set; } = "white";    // P13 皮肤：white | acrylic
+    public Dictionary<string, string> drawerIcons { get; set; } = new();   // 抽屉 emoji 标记（路径 -> emoji）
 }
 
 /// <summary>配置读写。损坏时回退默认值（不抛）。</summary>
