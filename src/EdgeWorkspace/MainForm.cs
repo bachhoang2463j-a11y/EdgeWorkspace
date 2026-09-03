@@ -316,6 +316,43 @@ public class MainForm : Form
             Native.SetDropTarget(h, _fileDrop);
     }
 
+    // ---------- P10: 抽屉改名（文件夹重命名 + 数据迁移） ----------
+
+    /// <summary>抽屉改名：目录重命名；meta.json 键前缀与 config 折叠状态跟随，config 重推同步前端。</summary>
+    private void RenameDrawer(string from, string to)
+    {
+        if (from == "" || to == "" || from == to) return;
+        if (to.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            Log("drawerRename: 非法名称「" + to + "」");
+            return;
+        }
+        var src = Path.Combine(WorkspacePath, from);
+        var dest = Path.Combine(WorkspacePath, to);
+        if (!Directory.Exists(src) || File.Exists(dest) || Directory.Exists(dest))
+        {
+            Log("drawerRename: 源不存在或目标已存在「" + to + "」");
+            return;
+        }
+        try
+        {
+            Directory.Move(src, dest);
+            FileMetaStore.MigrateDrawer(from, to);   // 置顶/常用统计跟随
+            ConfigStore.Update(c =>
+            {
+                for (var i = 0; i < c.collapsedDrawers.Count; i++)
+                    if (c.collapsedDrawers[i] == from) c.collapsedDrawers[i] = to;   // 折叠状态跟随
+            });
+            _lastSignature = ComputeSignature();
+            PushFiles();
+            PostToJs(new { type = "config", config = ConfigStore.Current });
+        }
+        catch (Exception ex)
+        {
+            Log("drawerRename failed: " + ex.Message);
+        }
+    }
+
     // ---------- P9: 落点命中（OLE 屏幕坐标 -> CSS 坐标 -> JS 抽屉命中 -> 回执移动） ----------
 
     private string[]? _pendingDrop;
@@ -614,6 +651,14 @@ public class MainForm : Form
                             Directory.CreateDirectory(Path.Combine(WorkspacePath, name));
                             PushFiles();
                         }
+                        break;
+                    }
+                case "drawerRename":
+                    {
+                        // 抽屉改名 = 文件夹重命名（P10）；meta.json 键前缀与折叠状态跟随
+                        var from = (msg.RootElement.GetProperty("from").GetString() ?? "").Trim();
+                        var to = (msg.RootElement.GetProperty("to").GetString() ?? "").Trim();
+                        RenameDrawer(from, to);
                         break;
                     }
                 case "contextMenu":

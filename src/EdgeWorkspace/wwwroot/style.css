@@ -112,6 +112,15 @@ body {
   display: flex; align-items: center; gap: 6px;
   font-size: 12.5px; font-weight: 700; color: var(--section-title);
 }
+/* P10: 抽屉标题点击改名 */
+.section-title-label { cursor: text; border-radius: 4px; padding: 1px 4px; margin-left: -4px; }
+.section-title-label:hover { background: var(--border-subtle); }
+.section-title-input {
+  font-size: 12.5px; font-weight: 700; color: var(--section-title); font-family: inherit;
+  border: 1px solid var(--primary); border-radius: 4px; padding: 1px 4px; outline: none;
+  background: var(--bg-card); width: 50%;
+  user-select: text;
+}
 .toggle-arrow { width: 14px; height: 14px; transition: transform .2s ease; color: var(--text-muted); }
 .section-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .section-count { font-size: 11px; font-weight: 500; color: var(--text-muted); }

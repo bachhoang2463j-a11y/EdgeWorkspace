@@ -95,6 +95,7 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `contextMenu` | `{name, drawer}` | Shell 原生右键菜单（抽屉横栏右键 = 该文件夹的菜单） |
 | `startDragOut` | `{files: [{name, drawer}]}` | C# 发起 OLE 拖出（DoDragDrop，多文件；选择模式拖整组） |
 | `drawerCreate` | `{name}` | 新建抽屉 = 工作区新建同名文件夹 |
+| `drawerRename` | `{from, to}` | 抽屉改名 = 文件夹重命名；meta.json 键前缀与折叠状态跟随，config 重推同步 |
 | `hitResult` | `{drawer}` 或 `{trash: true}` | 落点命中回执（对 C# hitTest 的应答） |
 | `moveFiles` | `{files: [{name, drawer}], drawer}` | 批量移动到目标抽屉/未分类 |
 | `deleteFiles` | `{files: [{name, drawer}]}` | 删除到**系统回收站**（选择模式「删除」/ Del 键） |

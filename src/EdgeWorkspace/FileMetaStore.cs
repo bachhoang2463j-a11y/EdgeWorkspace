@@ -65,4 +65,19 @@ public static class FileMetaStore
         m.pinned = pinned;
         Save();
     }
+
+    /// <summary>抽屉改名：迁移该抽屉下全部条目的键前缀（置顶/常用统计跟随，P10）。</summary>
+    public static void MigrateDrawer(string oldName, string newName)
+    {
+        var prefix = oldName + "/";
+        var oldKeys = Meta.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+        if (oldKeys.Count == 0) return;
+        foreach (var old in oldKeys)
+        {
+            var value = Meta[old];
+            Meta.Remove(old);
+            Meta[newName + "/" + old[prefix.Length..]] = value;
+        }
+        Save();
+    }
 }

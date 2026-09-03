@@ -243,6 +243,15 @@ function buildSection(drawer, items) {
   const label = document.createElement('span');
   label.textContent = drawer ?? '未分类';
   titleBox.append(label);
+  // P10：点击抽屉标题原地改名（= 文件夹重命名）；未分类不可改
+  if (drawer !== null) {
+    label.className = 'section-title-label';
+    label.title = '点击改名';
+    label.addEventListener('click', e => {
+      e.stopPropagation();   // 别触发折叠
+      renameDrawer(label, drawer);
+    });
+  }
   const divider = document.createElement('div');
   divider.className = 'section-divider-line';
   const count = document.createElement('span');
@@ -269,6 +278,30 @@ function buildSection(drawer, items) {
 
   group.append(header, inner);
   return group;
+}
+
+// 抽屉改名（原地输入框；Enter/blur 提交，Esc 取消）。实际重命名与数据迁移在 C# 侧。
+function renameDrawer(labelEl, drawer) {
+  const input = document.createElement('input');
+  input.className = 'section-title-input';
+  input.value = drawer;
+  input.maxLength = 60;
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const to = input.value.trim();
+    input.replaceWith(labelEl);
+    if (to && to !== drawer) post('drawerRename', { from: drawer, to });
+  };
+  // 编辑中点击输入框不触发折叠（事件截在输入框上）
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = drawer; input.blur(); }
+  });
 }
 
 function buildFileCard(it) {
