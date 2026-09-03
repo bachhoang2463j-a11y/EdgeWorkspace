@@ -13,15 +13,47 @@ let allItems = [];      // 最新文件条目（C# 推送）
 let allDrawers = [];    // 抽屉清单（根目录子文件夹，C# 推送，名称序）
 let currentTab = 'all';
 let appConfig = {};     // 设置项（C# config 消息推送）
+let filterText = '';    // 名称过滤（P10）
+let sortMode = 'time';  // 排序模式 time|name|size|kind|frequent（P10，落 config）
 
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
   bindButtons();
   bindSelectBar();
+  bindSearch();
   // Ctrl+V 收纳走 C# 键态检测（pasteDetected 消息）：贴边唤出不抢焦点，
   // WebView 收不到键盘事件，必须由 C# 侧检测后回传分流。
   post('ready');
 });
+
+// ---------- P10: 名称过滤 + 排序 ----------
+function bindSearch() {
+  const box = document.getElementById('filterBox');
+  box.addEventListener('input', () => {
+    filterText = box.value;
+    if (currentTab !== 'whiteboard') renderGrid();
+  });
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { box.value = ''; filterText = ''; box.blur(); renderGrid(); }
+  });
+  document.getElementById('sortBox').addEventListener('change', e => {
+    sortMode = e.target.value;
+    post('setConfig', { key: 'sortMode', value: sortMode });
+    if (currentTab !== 'whiteboard') renderGrid();
+  });
+}
+
+// 组内排序：置顶恒优先，其次按模式（time=修改时间倒序，name=zh 词典序，size/kind/frequent）
+const KIND_RANK = { folder: 0, doc: 1, image: 2, video: 3, audio: 4, archive: 5, app: 6, other: 7 };
+function sortItems(list) {
+  const pin = (a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+  const time = (a, b) => (b.mtime || '').localeCompare(a.mtime || '');
+  if (sortMode === 'name') return [...list].sort((a, b) => pin(a, b) || a.name.localeCompare(b.name, 'zh'));
+  if (sortMode === 'size') return [...list].sort((a, b) => pin(a, b) || b.size - a.size);
+  if (sortMode === 'kind') return [...list].sort((a, b) => pin(a, b) || (KIND_RANK[a.kind] ?? 9) - (KIND_RANK[b.kind] ?? 9) || time(a, b));
+  if (sortMode === 'frequent') return [...list].sort((a, b) => pin(a, b) || (b.openCount || 0) - (a.openCount || 0) || time(a, b));
+  return [...list].sort((a, b) => pin(a, b) || time(a, b));
+}
 
 // ---------- Tabs（P2：过滤 + 计数） ----------
 function bindTabs() {
@@ -160,7 +192,11 @@ function renderGrid() {
   const grid = document.getElementById('fileGrid');
   const frag = document.createDocumentFragment();
 
-  const items = currentTab === 'all' ? allItems : allItems.filter(it => matchesTab(it, currentTab));
+  // Tab kind 过滤 + 名称过滤（P10：跨抽屉子串、忽略大小写）
+  const q = filterText.trim().toLowerCase();
+  const items = allItems
+    .filter(it => matchesTab(it, currentTab))
+    .filter(it => !q || it.name.toLowerCase().includes(q));
   const groups = new Map();   // 抽屉名 | null(未分类) -> 条目[]
   for (const it of items) {
     const key = it.drawer ?? null;
@@ -168,13 +204,15 @@ function renderGrid() {
     groups.get(key).push(it);
   }
 
-  // 抽屉分组：全部视图下空抽屉也显示（拖放目标 + 状态提示）；分类视图只显示有匹配项的组
+  // 抽屉分组：全部视图下空抽屉也显示（拖放目标 + 状态提示）；分类视图/过滤中只显示有匹配项的组
   for (const d of allDrawers) {
+    const g = groups.get(d) || [];
     if (currentTab !== 'all' && !groups.has(d)) continue;
-    frag.append(buildSection(d, groups.get(d) || []));
+    if (q && g.length === 0) continue;
+    frag.append(buildSection(d, sortItems(g)));
   }
   // 未分类殿后
-  if (groups.has(null)) frag.append(buildSection(null, groups.get(null)));
+  if (groups.has(null)) frag.append(buildSection(null, sortItems(groups.get(null))));
 
   const add = document.createElement('div');
   add.className = 'section-add';
@@ -279,6 +317,17 @@ function buildFileCard(it) {
   meta.textContent = it.isFolder ? '文件夹' : fmtSize(it.size);
 
   card.append(thumb, title, meta);
+
+  // P10：置顶星标（已置顶恒显 ★，未置顶悬停显 ☆；点击切换，不触发打开/勾选）
+  const star = document.createElement('button');
+  star.className = 'pin-star' + (it.pinned ? ' pinned' : '');
+  star.textContent = it.pinned ? '★' : '☆';
+  star.title = it.pinned ? '取消置顶' : '置顶（恒排组内最前）';
+  star.addEventListener('click', e => {
+    e.stopPropagation();
+    post('pinFile', { name: it.name, drawer: it.drawer ?? null, pinned: !it.pinned });
+  });
+  card.append(star);
 
   // P4 交互（v2：全部带 drawer 定位）；P9 选择模式下点击 = 勾选而非打开
   const key = keyOf(it);
@@ -391,9 +440,11 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'config': {
-      // 设置项（C# ready/refresh 推送）；含抽屉折叠状态 -> 应用并重渲染
+      // 设置项（C# ready/refresh 推送）；含抽屉折叠状态与排序模式 -> 应用
       appConfig = msg.config || {};
       collapsedDrawers = new Set(appConfig.collapsedDrawers || []);
+      sortMode = appConfig.sortMode || 'time';
+      document.getElementById('sortBox').value = sortMode;
       if (currentTab !== 'whiteboard') renderGrid();
       break;
     }

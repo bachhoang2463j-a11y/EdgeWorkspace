@@ -100,7 +100,8 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `deleteFiles` | `{files: [{name, drawer}]}` | 删除到**系统回收站**（选择模式「删除」/ Del 键） |
 | `clipboardSave` / `clipboardToNote` | `{drawer}` / — | Ctrl+V 收纳：文件视图粘贴到光标下抽屉分组（FileDrop 优先=资源管理器/面板复制的文件，其次截图/文本）；白板页直接建便签 |
 | `copyFiles` | `{files}` | Ctrl+C 文件写入剪贴板 FileDrop（可粘贴到资源管理器/面板，工作区内部通道） |
-| `setConfig` | `{key, value}` | 写设置项（现仅 trashAutoClearDays） |
+| `setConfig` | `{key, value}` | 写设置项（collapsedDrawers / sortMode） |
+| `pinFile` | `{name, drawer, pinned}` | 文件置顶切换（meta.json + 重推） |
 | `noteCopy` | `{content}` | 便签窗口「复制」按钮：整篇写入剪贴板 |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
 | `noteRename` | `{id, title}` | 改名（写 index.json + Touch + 重推） |
@@ -205,6 +206,17 @@ C# → JS（`PostWebMessageAsJson`）：
 权限，粘贴进便签的恶意 HTML 不消毒会在 app.local 上下文执行。卡片与窗口共用 `.note-md`
 排版（便签黄主题）。**富文本路线已定案弃用**（Vditor 525 文件 + WYSIWYG 稳定性教训，
 参照花笺 floral-notepaper 的"纯文本编辑 + 只读渲染"模型）。
+
+### 5.7 查找与排序（P10）
+
+- **名称过滤**：Tab 栏右侧搜索框，输入即筛（跨抽屉子串、忽略大小写）；过滤中空分组
+  隐藏（「全部」的空抽屉占位也临时隐藏），Esc 清除；输入框聚焦时 C# 的 Ctrl+C/V/Del
+  检测不拦截（正常编辑）
+- **排序**：时间（默认，修改时间倒序）/ 名称（zh 词典序）/ 大小 / 类型 / 常用
+  （openCount 降序），**置顶恒优先**；排序在分组内生效，组序仍为抽屉名序；
+  选择落 config.json（`sortMode`），前端派生（柱 3）
+- **置顶**：卡片右上角星标（已置顶恒显 ★，未置顶悬停显 ☆），点击切换 ->
+  `pinFile` -> FileMetaStore.SetPinned（meta.json 落盘）-> 重推 files（星标与排序即时刷新）
 
 ## 6. 分类口径（kind 映射）与缩略图
 

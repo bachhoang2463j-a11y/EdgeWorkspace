@@ -702,7 +702,18 @@ public class MainForm : Form
                             if (key == "collapsedDrawers")   // 抽屉折叠状态记忆（跨重启；''=未分类）
                                 c.collapsedDrawers = msg.RootElement.GetProperty("value").EnumerateArray()
                                     .Select(x => x.GetString() ?? "").ToList();
+                            else if (key == "sortMode")      // 排序模式（P10）
+                                c.sortMode = msg.RootElement.GetProperty("value").GetString() ?? "time";
                         });
+                        break;
+                    }
+                case "pinFile":
+                    {
+                        // P10：文件置顶（meta.json 落盘 + 重推刷新星标与置顶排序）
+                        var name = msg.RootElement.GetProperty("name").GetString()!;
+                        var drawer = GetDrawer(msg.RootElement);
+                        FileMetaStore.SetPinned(drawer, name, msg.RootElement.GetProperty("pinned").GetBoolean());
+                        PushFiles();
                         break;
                     }
                 // ---------- P5: 白板便签 ----------

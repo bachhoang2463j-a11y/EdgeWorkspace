@@ -56,4 +56,13 @@ public static class FileMetaStore
         m.lastOpened = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
         Save();
     }
+
+    /// <summary>置顶标记（P10），立即落盘。</summary>
+    public static void SetPinned(string? drawer, string name, bool pinned)
+    {
+        var key = Key(drawer, name);
+        if (!Meta.TryGetValue(key, out var m)) Meta[key] = m = new FileMeta();
+        m.pinned = pinned;
+        Save();
+    }
 }

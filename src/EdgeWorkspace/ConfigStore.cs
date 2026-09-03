@@ -6,6 +6,7 @@ namespace EdgeWorkspace;
 public sealed class AppConfig
 {
     public List<string> collapsedDrawers { get; set; } = new();   // 折叠中的抽屉名（''=未分类）
+    public string sortMode { get; set; } = "time";   // time | name | size | kind | frequent
 }
 
 /// <summary>配置读写。损坏时回退默认值（不抛）。</summary>
