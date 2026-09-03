@@ -29,7 +29,8 @@ public class MainForm : Form
     private bool _animOpening;
     private int _parkedX;        // 完全滑出屏幕的 X
 
-    internal static readonly string WorkspacePath = "D:\\Workspace_Temp";
+    /// <summary>工作区路径（P12 起可经设置热切换：重映射 files.local + 重建 watcher）。</summary>
+    internal static string WorkspacePath { get; private set; } = "D:\\Workspace_Temp";
 
     /// <summary>文件完整路径：drawer=null 为工作区根目录，否则 工作区/抽屉路径/文件名。
     /// drawer 是 '/' 分隔的相对路径；校验不越出工作区。</summary>
@@ -68,6 +69,11 @@ public class MainForm : Form
 
         Load += async (_, _) =>
         {
+            // P12：配置先行（工作区路径在映射/监视器建立前生效；自启回读注册表真实态）
+            if (!string.IsNullOrEmpty(ConfigStore.Current.workspacePath))
+                WorkspacePath = ConfigStore.Current.workspacePath;
+            ConfigStore.Current.autostart = AutoStartEnabled();
+
             DockRight();
             _parkedX = Right; // 初始即停靠（P3 后启动隐藏，先保持可见便于联调）
             _web = new Microsoft.Web.WebView2.WinForms.WebView2
@@ -396,6 +402,47 @@ public class MainForm : Form
             return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
         try { return new UTF8Encoding(false, true).GetString(bytes); }
         catch (DecoderFallbackException) { return Gb18030().GetString(bytes); }
+    }
+
+    // ---------- P12: 工作区热切换 / 开机自启 ----------
+
+    /// <summary>热切换工作区：重映射 files.local 虚拟主机 + 重建 watcher + 全量重推。</summary>
+    private void ApplyWorkspacePath(string newPath)
+    {
+        WorkspacePath = newPath;
+        try
+        {
+            _core?.SetVirtualHostNameToFolderMapping("files.local", WorkspacePath,
+                CoreWebView2HostResourceAccessKind.Allow);
+        }
+        catch (Exception ex) { Log("remap files.local failed: " + ex.Message); }
+        _watcher?.Dispose();
+        _watcher = new WorkspaceWatcher(WorkspacePath, PushFiles);
+        _watcher.Start();
+        _lastSignature = ComputeSignature();
+        PushFiles();
+        PostToJs(new { type = "config", config = ConfigStore.Current });
+    }
+
+    private static bool AutoStartEnabled()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+            return key?.GetValue("EdgeWorkspace") is not null;
+        }
+        catch { return false; }
+    }
+
+    private static void SetAutoStart(bool on)
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+            if (on) key.SetValue("EdgeWorkspace", "\"" + Application.ExecutablePath + "\"");
+            else key.DeleteValue("EdgeWorkspace", throwOnMissingValue: false);
+        }
+        catch (Exception ex) { Log("SetAutoStart failed: " + ex.Message); }
     }
 
     // ---------- P9: 落点命中（OLE 屏幕坐标 -> CSS 坐标 -> JS 抽屉命中 -> 回执移动） ----------
@@ -743,6 +790,7 @@ public class MainForm : Form
                     {
                         var target = GetDrawer(msg.RootElement);
                         var targetDir = string.IsNullOrEmpty(target) ? WorkspacePath : Path.Combine(WorkspacePath, target);
+                        Directory.CreateDirectory(targetDir);   // 目标抽屉可能已被删（如归档），重建
                         foreach (var el in msg.RootElement.GetProperty("files").EnumerateArray())
                         {
                             var name = el.GetProperty("name").GetString()!;
@@ -802,7 +850,33 @@ public class MainForm : Form
                             else if (key == "drawerOrder")   // 抽屉手动排序（视图序）
                                 c.drawerOrder = msg.RootElement.GetProperty("value").EnumerateArray()
                                     .Select(x => x.GetString() ?? "").ToList();
+                            else if (key == "staleEnabled")  // P12 过期灰显与计数开关
+                                c.staleEnabled = msg.RootElement.GetProperty("value").GetBoolean();
+                            else if (key == "staleDays")     // P12 过期天数
+                                c.staleDays = msg.RootElement.GetProperty("value").GetInt32();
+                            else if (key == "autostart")     // P12 开机自启（写注册表）
+                            {
+                                c.autostart = msg.RootElement.GetProperty("value").GetBoolean();
+                                SetAutoStart(c.autostart);
+                            }
+                            else if (key == "workspacePath") // P12 工作区路径热切换
+                            {
+                                var p = msg.RootElement.GetProperty("value").GetString() ?? "";
+                                if (Directory.Exists(p))
+                                {
+                                    c.workspacePath = p;
+                                    ApplyWorkspacePath(p);
+                                }
+                            }
                         });
+                        break;
+                    }
+                case "pickFolder":
+                    {
+                        // P12：设置面板「浏览」-> 系统选目录对话框 -> 回填前端
+                        using var dlg = new FolderBrowserDialog { Description = "选择工作区文件夹" };
+                        if (dlg.ShowDialog(this) == DialogResult.OK)
+                            PostToJs(new { type = "folderPicked", path = dlg.SelectedPath });
                         break;
                     }
                 case "pinFile":

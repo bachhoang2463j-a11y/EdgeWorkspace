@@ -22,10 +22,23 @@ window.addEventListener('DOMContentLoaded', () => {
   bindButtons();
   bindSelectBar();
   bindSearch();
-  // Ctrl+V 收纳走 C# 键态检测（pasteDetected 消息）：贴边唤出不抢焦点，
-  // WebView 收不到键盘事件，必须由 C# 侧检测后回传分流。
+  bindLifecycle();
+  bindSettings();
   post('ready');
 });
+
+// ---------- P12: 设置面板绑定 ----------
+function bindSettings() {
+  document.getElementById('setStaleEnabled').addEventListener('change', e =>
+    post('setConfig', { key: 'staleEnabled', value: e.target.checked }));
+  document.getElementById('setStaleDays').addEventListener('change', e =>
+    post('setConfig', { key: 'staleDays', value: Number(e.target.value) }));
+  document.getElementById('setAutostart').addEventListener('change', e =>
+    post('setConfig', { key: 'autostart', value: e.target.checked }));
+  document.getElementById('btnBrowseWs').addEventListener('click', () => post('pickFolder'));
+  document.getElementById('btnApplyWs').addEventListener('click', () =>
+    post('setConfig', { key: 'workspacePath', value: document.getElementById('setWorkspacePath').value.trim() }));
+}
 
 // ---------- P10: 名称过滤 + 排序 ----------
 function bindSearch() {
@@ -238,6 +251,80 @@ function closePeek() {
   document.getElementById('previewBox').innerHTML = '';
 }
 
+// ---------- P12: 过期提醒与归档 ----------
+const ARCHIVE = '归档';   // 特殊抽屉：不进主列表，底部面板呈现（data-drawer=归档 可作拖放目标）
+
+function isStale(it) {
+  if (!appConfig.staleEnabled || it.drawer === ARCHIVE) return false;
+  const days = appConfig.staleDays || 14;
+  const t = Date.parse((it.mtime || '').replace(' ', 'T'));
+  return !isNaN(t) && (Date.now() - t) > days * 86400000;
+}
+
+function staleFiles() { return allItems.filter(isStale); }
+
+function updateStaleInfo() {
+  const n = staleFiles().length;
+  const on = appConfig.staleEnabled;
+  document.getElementById('staleInfo').hidden = !on || n === 0;
+  document.getElementById('btnArchiveAll').hidden = !on || n === 0;
+  document.getElementById('staleCount').textContent = n;
+  document.getElementById('staleDaysText').textContent = appConfig.staleDays || 14;
+}
+
+function bindLifecycle() {
+  document.getElementById('btnArchiveAll').addEventListener('click', () => {
+    const files = staleFiles().map(it => ({ name: it.name, drawer: it.drawer ?? null }));
+    if (files.length) post('moveFiles', { files, drawer: ARCHIVE });   // 可逆：归档面板可移回
+  });
+  document.getElementById('btnArchivePanel').addEventListener('click', () => toggleArchive());
+  document.getElementById('archiveClose').addEventListener('click', () => toggleArchive(false));
+  document.getElementById('archiveEmpty').addEventListener('click', () => {
+    const files = allItems.filter(it => it.drawer === ARCHIVE).map(it => ({ name: it.name, drawer: ARCHIVE }));
+    if (files.length && confirm('清空归档？共 ' + files.length + ' 项，将移入系统回收站。'))
+      post('deleteFiles', { files });
+  });
+}
+
+function toggleArchive(force) {
+  const panel = document.getElementById('archivePanel');
+  panel.hidden = force !== undefined ? !force : !panel.hidden;
+  document.getElementById('btnArchivePanel').textContent = panel.hidden ? '归档 ▲' : '归档 ▼';
+  if (!panel.hidden) renderArchive();
+}
+
+function renderArchive() {
+  const items = allItems.filter(it => it.drawer === ARCHIVE);
+  document.getElementById('archiveCount').textContent = items.length;
+  const list = document.getElementById('archiveList');
+  list.replaceChildren();
+  for (const it of items) {
+    const row = document.createElement('div');
+    row.className = 'archive-row';
+    const name = document.createElement('span');
+    name.className = 'archive-row-name';
+    name.textContent = it.name;
+    name.title = it.name + ' · ' + it.mtime;
+    const restore = document.createElement('button');
+    restore.className = 'archive-btn';
+    restore.textContent = '移回';
+    restore.title = '移回未分类';
+    restore.addEventListener('click', () => post('moveFiles', { files: [{ name: it.name, drawer: ARCHIVE }], drawer: null }));
+    const del = document.createElement('button');
+    del.className = 'archive-btn archive-del';
+    del.textContent = '删除';
+    del.addEventListener('click', () => post('deleteFiles', { files: [{ name: it.name, drawer: ARCHIVE }] }));
+    row.append(name, restore, del);
+    list.append(row);
+  }
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'archive-empty';
+    empty.textContent = '归档为空（一键归档收进来的文件会出现在这里）';
+    list.append(empty);
+  }
+}
+
 // ---------- 文件渲染（v2 柱1：抽屉分组） ----------
 // 抽屉 = 工作区根目录子文件夹；未分类 = 根目录散文件。
 // 折叠状态记忆走 config.json（C# 落盘，跨重启可靠；appConfig.collapsedDrawers）。
@@ -292,6 +379,7 @@ function renderGrid() {
   const buildLevel = parent => {
     const out = [];
     for (const p of sortDrawers(children.get(parent) || [])) {
+      if (p === ARCHIVE) continue;   // 归档走底部面板，不进主列表（P12）
       if (!showAll && !active.has(p)) continue;
       out.push(buildSection(p, sortItems(groups.get(p) || []), buildLevel(p)));
     }
@@ -314,6 +402,8 @@ function renderGrid() {
 
   grid.replaceChildren(frag);
   updateBadges();
+  updateStaleInfo();
+  if (!document.getElementById('archivePanel').hidden) renderArchive();
 }
 
 function buildSection(drawer, items, subs) {
@@ -567,6 +657,9 @@ function buildFileCard(it) {
     }
   });
 
+  // P12：过期灰显（仅视觉标记，功能不受影响）
+  if (isStale(it)) card.classList.add('stale');
+
   // P4 交互（v2：全部带 drawer 定位）；P9 选择模式下点击 = 勾选而非打开
   const key = keyOf(it);
   if (selectMode && selectedKeys.has(key)) card.classList.add('selected');
@@ -627,9 +720,10 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'hitTest': {
-      // 落点命中哪个分组：抽屉名 / null(未分类或空白)
+      // 落点命中哪个分组：抽屉名 / null(未分类或空白)。[data-drawer] 同时覆盖
+      // section-group 与底部归档面板（拖到归档面板上 = 移入归档，P12）
       const el = document.elementFromPoint(msg.x, msg.y);
-      const sec = el instanceof Element ? el.closest('.section-group') : null;
+      const sec = el instanceof Element ? el.closest('[data-drawer]') : null;
       post('hitResult', { drawer: sec ? (sec.dataset.drawer || null) : null });
       break;
     }
@@ -685,13 +779,20 @@ bridge?.addEventListener('message', e => {
       }
       break;
     }
+    case 'folderPicked':
+      document.getElementById('setWorkspacePath').value = msg.path || '';
+      break;
     case 'config': {
-      // 设置项（C# ready/refresh 推送）；含折叠状态/排序模式/手动抽屉序 -> 应用
+      // 设置项（C# ready/refresh 推送）；含折叠状态/排序模式/手动抽屉序/生命周期 -> 应用
       appConfig = msg.config || {};
       collapsedDrawers = new Set(appConfig.collapsedDrawers || []);
       sortMode = appConfig.sortMode || 'time';
       drawerOrder = appConfig.drawerOrder || [];
       document.getElementById('sortBox').value = sortMode;
+      document.getElementById('setStaleEnabled').checked = appConfig.staleEnabled !== false;
+      document.getElementById('setStaleDays').value = String(appConfig.staleDays || 14);
+      document.getElementById('setAutostart').checked = !!appConfig.autostart;
+      document.getElementById('setWorkspacePath').value = appConfig.workspacePath || '';
       if (currentTab !== 'whiteboard') renderGrid();
       break;
     }

@@ -69,7 +69,50 @@
         <button class="sb-btn" id="btnSettingsClose">关闭</button>
       </div>
       <div class="settings-body">
-        <div class="settings-hint">当前无设置项。后续版本将加入：回收站策略以外的 工作区路径、默认排序、开机自启等。</div>
+        <div class="settings-group">
+          <div class="settings-group-title">过期提醒</div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <div class="settings-label-main">灰显与计数</div>
+              <div class="settings-label-sub">超过 N 天未修改的文件卡片变灰，底栏显示计数与一键归档</div>
+            </div>
+            <input type="checkbox" id="setStaleEnabled" class="settings-check" />
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <div class="settings-label-main">过期天数</div>
+            </div>
+            <select class="settings-select" id="setStaleDays">
+              <option value="7">7 天</option>
+              <option value="14">14 天</option>
+              <option value="30">30 天</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <div class="settings-group-title">工作区</div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <div class="settings-label-main">路径</div>
+              <div class="settings-label-sub">即时生效：重映射文件源并重建监视</div>
+            </div>
+            <div class="settings-inline">
+              <input type="text" id="setWorkspacePath" class="settings-input" spellcheck="false" />
+              <button class="sb-btn" id="btnBrowseWs">浏览</button>
+              <button class="sb-btn sb-primary" id="btnApplyWs">应用</button>
+            </div>
+          </div>
+        </div>
+        <div class="settings-group">
+          <div class="settings-group-title">系统</div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <div class="settings-label-main">开机自启</div>
+              <div class="settings-label-sub">写入当前用户注册表 Run 键</div>
+            </div>
+            <input type="checkbox" id="setAutostart" class="settings-check" />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -90,9 +133,26 @@
       </div>
     </div>
 
-    <!-- 底部状态栏 -->
+    <!-- P12: 归档底部面板（默认收起，自底栏向上展开；data-drawer 使其可作拖放目标） -->
+    <div class="archive-panel" id="archivePanel" data-drawer="归档" hidden>
+      <div class="archive-header">
+        <span>📦 归档 · <b id="archiveCount">0</b> 项</span>
+        <div class="archive-actions">
+          <button class="archive-btn" id="archiveEmpty">清空</button>
+          <button class="archive-btn" id="archiveClose">收起 ▼</button>
+        </div>
+      </div>
+      <div class="archive-list" id="archiveList"></div>
+    </div>
+
+    <!-- 底部状态栏（P12：中簇 = 过期计数 + 一键归档 + 归档展开） -->
     <div class="drawer-footer">
       <span class="footer-action-text">拖入文件 = 移入工作区</span>
+      <span class="footer-mid">
+        <span class="footer-stale" id="staleInfo" hidden>⏳ <b id="staleCount">0</b> 项超过 <span id="staleDaysText">14</span> 天</span>
+        <button class="footer-btn" id="btnArchiveAll" hidden>一键归档</button>
+        <button class="footer-btn footer-btn-arch" id="btnArchivePanel" title="展开归档">归档 ▲</button>
+      </span>
       <span>Ctrl+Shift+Z 唤出 · 滚轮翻页 · 右键菜单</span>
     </div>
   </div>

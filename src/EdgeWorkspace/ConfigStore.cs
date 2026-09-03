@@ -8,6 +8,10 @@ public sealed class AppConfig
     public List<string> collapsedDrawers { get; set; } = new();   // 折叠中的抽屉路径（''=未分类）
     public string sortMode { get; set; } = "time";   // time | name | size | kind | frequent
     public List<string> drawerOrder { get; set; } = new();   // 抽屉手动排序（视图序，不动物理目录；未列者按名序补齐）
+    public bool staleEnabled { get; set; } = true;   // P12 过期灰显与计数开关
+    public int staleDays { get; set; } = 14;         // 过期天数
+    public string workspacePath { get; set; } = "";  // 工作区路径（空=默认 D:\Workspace_Temp）
+    public bool autostart { get; set; }             // 开机自启（启动时从注册表回读真实状态）
 }
 
 /// <summary>配置读写。损坏时回退默认值（不抛）。</summary>
