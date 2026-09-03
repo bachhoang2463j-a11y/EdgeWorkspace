@@ -452,6 +452,14 @@ public class MainForm : Form
                         PushNotes();
                         break;
                     }
+                case "noteRename":
+                    {
+                        var id = msg.RootElement.GetProperty("id").GetString()!;
+                        var title = msg.RootElement.GetProperty("title").GetString() ?? "";
+                        NoteStore.Rename(id, title);
+                        PushNotes(); // 改名要刷新墙上的标题
+                        break;
+                    }
             }
         }
         catch (Exception ex)

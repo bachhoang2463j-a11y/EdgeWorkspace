@@ -1,5 +1,5 @@
 // EdgeWorkspace 前端逻辑
-// P2：分类 Tab 过滤 + 计数徽章联动。
+// P2：分类 Tab 过滤 + 计数徽章联动。P5：白板便签。P5.5：便签改名 + 双击纯文本大编辑窗。
 
 const bridge = window.chrome?.webview ?? null;
 
@@ -14,8 +14,22 @@ let currentTab = 'all';
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
   bindButtons();
+  bindMdWindow();
   post('ready');
 });
+
+// ---------- MD 弹窗按钮（P5.5） ----------
+function bindMdWindow() {
+  document.getElementById('mdSave').addEventListener('click', () => closeMdEditor(true));
+  document.getElementById('mdClose').addEventListener('click', () => closeMdEditor(false));
+  document.getElementById('mdOverlay').addEventListener('mousedown', e => {
+    if (e.target === e.currentTarget) closeMdEditor(false); // 点遮罩关闭
+  });
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && editingNote) closeMdEditor(false);
+    if (e.ctrlKey && e.key === 's' && editingNote) { e.preventDefault(); closeMdEditor(true); }
+  });
+}
 
 // ---------- Tabs（P2：过滤 + 计数） ----------
 function bindTabs() {
@@ -178,7 +192,10 @@ function buildNoteCard(n) {
   const header = document.createElement('div');
   header.className = 'whiteboard-header';
   const title = document.createElement('span');
-  title.textContent = '便签 · ' + (n.mtime || '');
+  title.className = 'whiteboard-title';
+  title.textContent = n.title || ('便签 · ' + (n.mtime || ''));
+  title.title = '点击改名；双击卡片打开大编辑窗';
+  title.addEventListener('click', () => renameNote(n, title));
   const del = document.createElement('button');
   del.className = 'whiteboard-del';
   del.textContent = '删除';
@@ -216,6 +233,18 @@ function buildNoteCard(n) {
     }
   });
 
+  // 双击卡片 = 屏幕正中大编辑窗（textarea 自身的 dblclick 会选词，拦截转发）
+  const openEditor = () => {
+    flushNoteOne(n.id, ta.value);
+    openMdEditor(n, ta);
+  };
+  box.addEventListener('dblclick', openEditor);
+  ta.addEventListener('dblclick', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    openEditor();
+  });
+
   box.append(header, ta);
   return box;
 }
@@ -230,4 +259,63 @@ function flushNotes() {
       post('noteSave', { id, content: ta.value });
     }
   });
+}
+
+// ---------- P5.5: 便签改名 + 双击纯文本大编辑窗 ----------
+// noteSave 后 C# 不回推（避免编辑中频繁重渲染），卡片内容由前端本地状态维持。
+
+function renameNote(n, titleEl) {
+  const input = document.createElement('input');
+  input.className = 'whiteboard-title-input';
+  input.value = n.title || '';
+  input.maxLength = 40;
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const t = input.value.trim();
+    if (t !== (n.title || '')) post('noteRename', { id: n.id, title: t }); // C# PushNotes 重渲染刷新标题
+    input.replaceWith(titleEl);
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = n.title || ''; input.blur(); }
+  });
+}
+
+let editingNote = null;   // { n, ta }：弹窗期间对应的便签与卡片文本域
+
+// 弹窗内容取卡片 textarea 当前值——n.content 是渲染时快照，noteSave 不回推时会过期
+function openMdEditor(n, ta) {
+  editingNote = { n, ta };
+  document.getElementById('mdTitle').value = n.title || '';
+  const editor = document.getElementById('mdEditor');
+  editor.value = ta.value;
+  document.getElementById('mdOverlay').style.display = 'flex';
+  editor.focus();
+}
+
+function closeMdEditor(save) {
+  document.getElementById('mdOverlay').style.display = 'none';
+  if (!editingNote) return;
+  const { n, ta } = editingNote;
+  editingNote = null;
+  if (!save) return;
+  const content = document.getElementById('mdEditor').value;
+  const title = document.getElementById('mdTitle').value.trim();
+  if (content !== ta.value) post('noteSave', { id: n.id, content });
+  if (title !== (n.title || '')) post('noteRename', { id: n.id, title });
+  // 本地回写：再次双击时能看到刚保存的内容（后端不回推）
+  ta.value = content;
+  n.content = content;
+}
+
+// 双击打开弹窗前：若 600ms 防抖定时器还挂着，立即落盘
+function flushNoteOne(id, value) {
+  if (saveTimers.has(id)) {
+    clearTimeout(saveTimers.get(id));
+    saveTimers.delete(id);
+    post('noteSave', { id, content: value });
+  }
 }
