@@ -4,5 +4,8 @@
 marked.use({ gfm: true, breaks: true });
 
 function renderMarkdown(text) {
-  return DOMPurify.sanitize(marked.parse(text || ''));
+  // 先转义 "<"：伪 HTML 块（如酒馆 <Status_block>）会被 marked 当原生 HTML 透传，
+  // 块内换行在 HTML 语义下折叠丢失；转义后走段落路径，breaks 保住每一行。
+  const src = String(text || '').replace(/</g, '&lt;');
+  return DOMPurify.sanitize(marked.parse(src));
 }

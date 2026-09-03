@@ -165,8 +165,8 @@ public class MainForm : Form
 
         Log("edge summon: cursor=" + x + "," + y);
         BeginExpand();
-        // 贴边唤出（鼠标）默认展示白板；拖放唤出时上面已切到全部
-        SetFrontTab("whiteboard");
+        // 贴边唤出（鼠标）：上半屏 -> 文件【全部】，下半屏 -> 白板便签；拖放唤出固定【全部】
+        SetFrontTab(y < (wa.Top + wa.Bottom) / 2 ? "all" : "whiteboard");
     }
 
     private bool IsSelfAt(int x, int y) => Visible && x >= Left && x < Right && y >= Top && y < Bottom;
