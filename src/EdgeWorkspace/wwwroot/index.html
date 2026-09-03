@@ -30,6 +30,9 @@
         <button class="action-btn" id="btnSelect" title="批量选择（拖动=整组移动，可批量移入抽屉/删除）">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </button>
+        <button class="action-btn" id="btnSettings" title="设置">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
         <button class="action-btn" id="btnPin" title="固定常驻 / 移出自动收起">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
         </button>
@@ -49,6 +52,32 @@
     <div class="drawer-content">
       <div id="fileGrid"></div>
       <div class="note-wall" id="noteWall" style="display:none;"></div>
+    </div>
+
+    <!-- 设置面板（覆盖整个抽屉；分组行结构为 P12 预留扩展） -->
+    <div class="settings-panel" id="settingsPanel" hidden>
+      <div class="settings-header">
+        <span class="settings-title">设置</span>
+        <button class="sb-btn" id="btnSettingsClose">关闭</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <div class="settings-group-title">回收站</div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <div class="settings-label-main">自动清空</div>
+              <div class="settings-label-sub">启动时删除回收站内超过指定天数的项</div>
+            </div>
+            <select class="settings-select" id="setTrashAuto">
+              <option value="0">关闭（仅手动清空）</option>
+              <option value="7">超过 7 天</option>
+              <option value="14">超过 14 天</option>
+              <option value="30">超过 30 天</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-hint">后续版本将加入：工作区路径、默认排序、开机自启等设置。</div>
+      </div>
     </div>
 
     <!-- P9: 批量选择操作条（选择模式时显示） -->

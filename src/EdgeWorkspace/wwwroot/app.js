@@ -12,6 +12,7 @@ function post(type, payload = {}) {
 let allItems = [];      // 最新文件条目（C# 推送）
 let allDrawers = [];    // 抽屉清单（根目录子文件夹，C# 推送，名称序）
 let currentTab = 'all';
+let appConfig = {};     // 设置项（C# config 消息推送）
 
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
@@ -69,6 +70,15 @@ function bindButtons() {
     post('setPinned', { pinned });
   });
   document.getElementById('btnSelect').addEventListener('click', () => setSelectMode(!selectMode));
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    document.getElementById('settingsPanel').hidden = false;
+  });
+  document.getElementById('btnSettingsClose').addEventListener('click', () => {
+    document.getElementById('settingsPanel').hidden = true;
+  });
+  document.getElementById('setTrashAuto').addEventListener('change', e => {
+    post('setConfig', { key: 'trashAutoClearDays', value: Number(e.target.value) });
+  });
 }
 
 // ---------- P9: 批量选择模式 ----------
@@ -210,6 +220,17 @@ function buildTrashSection() {
   count.className = 'section-count';
   count.textContent = trashItems.length + ' 项';
   header.append(titleBox, divider, count);
+
+  const emptyBtn = document.createElement('button');
+  emptyBtn.className = 'trash-restore trash-empty-btn';
+  emptyBtn.textContent = '清空';
+  emptyBtn.title = '彻底删除全部回收站内容';
+  emptyBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (trashItems.length && confirm('清空回收站？共 ' + trashItems.length + ' 项，不可恢复。')) post('trashEmpty');
+  });
+  if (trashItems.length) header.append(emptyBtn);
+
   header.addEventListener('click', () => {
     const collapsed = group.classList.toggle('collapsed');
     if (collapsed) collapsedDrawers.add(TRASH_KEY); else collapsedDrawers.delete(TRASH_KEY);
@@ -237,7 +258,15 @@ function buildTrashSection() {
       e.stopPropagation();
       post('trashRestore', { id: t.id });
     });
-    row.append(name, restore);
+    const purge = document.createElement('button');
+    purge.className = 'trash-restore trash-purge';
+    purge.textContent = '彻底删除';
+    purge.title = '从磁盘永久删除，不可恢复';
+    purge.addEventListener('click', e => {
+      e.stopPropagation();
+      if (confirm('彻底删除「' + t.name + '」？不可恢复。')) post('trashDelete', { id: t.id });
+    });
+    row.append(name, restore, purge);
     list.append(row);
   }
 
@@ -292,6 +321,8 @@ function buildFileCard(it) {
   const card = document.createElement('div');
   card.className = 'file-card';
   card.title = (it.drawer ? it.drawer + '/' : '') + it.name + '\n' + it.mtime;
+  card.dataset.name = it.name;          // copyDetected（Ctrl+C）命中依据
+  card.dataset.drawer = it.drawer ?? '';
 
   // P7：图片/视频直接出缩略图，读不了的格式回退图标
   const thumb = document.createElement('div');
@@ -406,11 +437,37 @@ bridge?.addEventListener('message', e => {
       break;
     case 'pasteDetected': {
       // 光标在面板时的 Ctrl+V（C# 键态检测，无需焦点）。输入框聚焦时不拦截正常粘贴；
-      // 白板页 = 剪贴板直接建便签，文件视图 = 存为文件。
+      // 文件视图 = 收纳到光标下的抽屉分组（无分组=未分类），白板页 = 直接建便签。
       const focus = document.activeElement;
       if (focus instanceof Element && focus.closest('input, textarea, select')) break;
-      if (currentTab === 'whiteboard') post('clipboardToNote');
-      else post('clipboardSave');
+      if (currentTab === 'whiteboard') { post('clipboardToNote'); break; }
+      const el = document.elementFromPoint(msg.x, msg.y);
+      const sec = el instanceof Element ? el.closest('.section-group') : null;
+      const drawer = sec && !sec.dataset.trash ? (sec.dataset.drawer || null) : null;
+      post('clipboardSave', { drawer });
+      break;
+    }
+    case 'copyDetected': {
+      // Ctrl+C 复制光标下的文件（FileDrop，可粘贴到资源管理器/面板）。
+      // 输入框聚焦时正常复制文本；选择模式且该卡在选区内 = 整组。
+      const focus = document.activeElement;
+      if (focus instanceof Element && focus.closest('input, textarea, select')) break;
+      const el = document.elementFromPoint(msg.x, msg.y);
+      const card = el instanceof Element ? el.closest('.file-card') : null;
+      if (!card || !card.dataset.name) break;
+      const it = allItems.find(i => i.name === card.dataset.name
+        && (i.drawer ?? '') === (card.dataset.drawer || ''));
+      if (!it) break;
+      const files = (selectMode && selectedKeys.has(keyOf(it)))
+        ? selectedFiles()
+        : [{ name: it.name, drawer: it.drawer ?? null }];
+      post('copyFiles', { files });
+      break;
+    }
+    case 'config': {
+      // 设置项（C# ready/refresh 推送）
+      appConfig = msg.config || {};
+      document.getElementById('setTrashAuto').value = String(appConfig.trashAutoClearDays ?? 0);
       break;
     }
   }

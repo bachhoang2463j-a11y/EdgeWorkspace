@@ -23,42 +23,79 @@ public static class FileOps
             UseShellExecute = true,
         });
 
-    // ---------- 移动（拖入收纳 / 抽屉间移动，P9） ----------
+    // ---------- 移动 / 复制（拖入收纳、抽屉间移动、Ctrl+C/V 粘贴通道，P9） ----------
 
     /// <summary>
-    /// 移动到目标目录（工作区根或抽屉文件夹）。已在目标位置则跳过；同名同大小 → owner 弹窗
-    /// （是=替换 / 否=保留两者自动编号 / 取消=跳过）；同名不同大小 → 自动追加 " (n)"。
-    /// 返回最终文件名；跳过返回 null。
+    /// 解析目标路径：无冲突用原名；同名同大小 → owner 弹窗（是=替换 / 否=保留两者自动编号 /
+    /// 取消=跳过返回 null）；同名不同大小 → 自动追加 " (n)"。
     /// </summary>
-    public static string? MoveInto(IWin32Window? owner, string src, string targetDir)
+    private static string? ResolveDest(IWin32Window? owner, string src, string targetDir)
     {
         var name = Path.GetFileName(src);
+        var dest = Path.Combine(targetDir, name);
+        if (!File.Exists(dest) && !Directory.Exists(dest)) return dest;
+
+        var ask = owner is not null && TryGetSize(src) >= 0 && TryGetSize(src) == TryGetSize(dest);
+        if (ask)
+        {
+            var r = MessageBox.Show(owner,
+                "「" + name + "」在目标位置已存在（大小相同，疑似重复）。\n\n" +
+                "是 = 替换\n否 = 保留两者（自动编号）\n取消 = 跳过",
+                "收纳去重", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (r == DialogResult.Cancel) return null;
+            if (r == DialogResult.Yes)
+            {
+                if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                else File.Delete(dest);
+                return dest;
+            }
+        }
+        return UniqueName(targetDir, name);
+    }
+
+    /// <summary>移动到目标目录；已在目标位置则跳过。返回最终文件名；跳过返回 null。</summary>
+    public static string? MoveInto(IWin32Window? owner, string src, string targetDir)
+    {
         if (string.Equals(Path.GetFullPath(Path.GetDirectoryName(src)!),
                           Path.GetFullPath(targetDir), StringComparison.OrdinalIgnoreCase))
-            return name;   // 已在目标位置（自落回原抽屉等）
+            return Path.GetFileName(src);   // 已在目标位置（自落回原抽屉等）
 
-        var dest = Path.Combine(targetDir, name);
-        if (File.Exists(dest) || Directory.Exists(dest))
-        {
-            var ask = owner is not null && TryGetSize(src) >= 0 && TryGetSize(src) == TryGetSize(dest);
-            if (ask)
-            {
-                var r = MessageBox.Show(owner,
-                    "「" + name + "」在目标位置已存在（大小相同，疑似重复）。\n\n" +
-                    "是 = 替换\n否 = 保留两者（自动编号）\n取消 = 跳过",
-                    "收纳去重", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-                if (r == DialogResult.Cancel) return null;
-                if (r == DialogResult.Yes)
-                {
-                    if (Directory.Exists(dest)) Directory.Delete(dest, true);
-                    else File.Delete(dest);
-                }
-                else dest = UniqueName(targetDir, name);
-            }
-            else dest = UniqueName(targetDir, name);
-        }
+        var dest = ResolveDest(owner, src, targetDir);
+        if (dest is null) return null;
         Move(src, dest);
         return Path.GetFileName(dest);
+    }
+
+    /// <summary>
+    /// 复制到目标目录（Ctrl+V 粘贴通道：资源管理器 → 工作区、工作区内部复制）。
+    /// 粘贴到原位 = 自动编号建副本。返回最终文件名；跳过返回 null。
+    /// </summary>
+    public static string? CopyInto(IWin32Window? owner, string src, string targetDir)
+    {
+        var name = Path.GetFileName(src);
+        var direct = Path.Combine(targetDir, name);
+        if (string.Equals(Path.GetFullPath(src), Path.GetFullPath(direct), StringComparison.OrdinalIgnoreCase))
+        {
+            var dup = UniqueName(targetDir, name);   // 原位粘贴 = 建副本
+            if (Directory.Exists(src)) CopyDirectory(src, dup);
+            else File.Copy(src, dup);
+            return Path.GetFileName(dup);
+        }
+
+        var dest = ResolveDest(owner, src, targetDir);
+        if (dest is null) return null;
+        if (Directory.Exists(src)) CopyDirectory(src, dest);
+        else File.Copy(src, dest);
+        return Path.GetFileName(dest);
+    }
+
+    private static void CopyDirectory(string src, string dest)
+    {
+        Directory.CreateDirectory(dest);
+        foreach (var f in Directory.EnumerateFiles(src))
+            File.Copy(f, Path.Combine(dest, Path.GetFileName(f)));
+        foreach (var d in Directory.EnumerateDirectories(src))
+            CopyDirectory(d, Path.Combine(dest, Path.GetFileName(d)));
     }
 
     /// <summary>目标目录内的可用名称：原名追加 " (n)"。</summary>

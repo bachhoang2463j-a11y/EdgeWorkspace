@@ -50,13 +50,47 @@ public static class TrashStore
             id = DateTime.Now.ToString("yyyyMMddHHmmssfff"),
             name = Path.GetFileName(fullPath),
             drawer = drawer ?? "",
-            deletedAt = DateTime.Now.ToString("MM-dd HH:mm"),
+            deletedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
         };
         var stored = Path.Combine(Dir, item.id + "_" + item.name);
         if (Directory.Exists(fullPath)) Directory.Move(fullPath, stored);
         else File.Move(fullPath, stored);
         items.Add(item);
         Save(items);
+    }
+
+    /// <summary>彻底删除单个回收站项。</summary>
+    public static void Delete(string id)
+    {
+        var items = Load();
+        var item = items.FirstOrDefault(x => x.id == id);
+        if (item is null) return;
+        RemoveStored(item);
+        items.Remove(item);
+        Save(items);
+    }
+
+    /// <summary>自动清空：删除 deletedAt 早于 N 天前的项（启动时调用；days&lt;=0 关闭）。</summary>
+    public static void AutoClear(int days)
+    {
+        if (days <= 0) return;
+        var cutoff = DateTime.Now.AddDays(-days);
+        var items = Load();
+        var expired = items.Where(i => DateTime.TryParse(i.deletedAt, out var t) && t < cutoff).ToList();
+        if (expired.Count == 0) return;
+        foreach (var item in expired)
+        {
+            RemoveStored(item);
+            items.Remove(item);
+        }
+        Save(items);
+    }
+
+    private static void RemoveStored(TrashItem item)
+    {
+        var stored = Path.Combine(Dir, item.id + "_" + item.name);
+        if (File.Exists(stored)) File.Delete(stored);
+        else if (Directory.Exists(stored)) Directory.Delete(stored, true);
     }
 
     public static void Restore(string id)

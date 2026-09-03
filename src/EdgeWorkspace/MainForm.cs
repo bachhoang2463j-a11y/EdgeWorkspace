@@ -90,6 +90,7 @@ public class MainForm : Form
             _core.Navigate("https://app.local/index.html");
 
             StartWatcher();
+            TrashStore.AutoClear(ConfigStore.Current.trashAutoClearDays);   // 回收站自动清空（P9）
             _poll.Tick += (_, _) => PushFilesIfChanged();
             _poll.Start();
 
@@ -391,32 +392,45 @@ public class MainForm : Form
         PushTrash();
     }
 
-    /// <summary>P9: Ctrl+V 直接收纳——剪贴板截图存 PNG / 文本存 txt，落入未分类。</summary>
-    private void SaveClipboard()
+    /// <summary>P9: Ctrl+V 粘贴收纳（drawer = 光标下的抽屉分组）。优先文件（FileDrop，
+    /// 来自资源管理器或面板自身的复制），其次截图/文本。</summary>
+    private void SaveClipboard(string? drawer)
     {
         try
         {
-            if (Clipboard.ContainsImage())
+            var targetDir = string.IsNullOrEmpty(drawer) ? WorkspacePath : Path.Combine(WorkspacePath, drawer);
+            if (Clipboard.ContainsFileDropList())
+            {
+                foreach (var f in Clipboard.GetFileDropList().Cast<string>())
+                {
+                    try { FileOps.CopyInto(this, f, targetDir); }
+                    catch (Exception ex) { Log("paste file failed: " + f + " - " + ex.Message); }
+                }
+                PushFiles();
+            }
+            else if (Clipboard.ContainsImage())
             {
                 using var img = Clipboard.GetImage();
-                img?.Save(Path.Combine(WorkspacePath, "截图 " + DateTime.Now.ToString("MMdd HHmmss") + ".png"),
+                img?.Save(Path.Combine(targetDir, "截图 " + DateTime.Now.ToString("MMdd HHmmss") + ".png"),
                     System.Drawing.Imaging.ImageFormat.Png);
                 PushFiles();
             }
             else if (Clipboard.ContainsText() && Clipboard.GetText() is { Length: > 0 } text)
             {
-                File.WriteAllText(Path.Combine(WorkspacePath, "文本 " + DateTime.Now.ToString("MMdd HHmmss") + ".txt"), text);
+                File.WriteAllText(Path.Combine(targetDir, "文本 " + DateTime.Now.ToString("MMdd HHmmss") + ".txt"), text);
                 PushFiles();
             }
         }
         catch (Exception ex) { Log("clipboardSave failed: " + ex.Message); }
     }
 
-    /// <summary>P9: 白板页 Ctrl+V —— 剪贴板直接变便签：文本即正文；截图存文件后以图片链接入便签。</summary>
+    /// <summary>P9: 白板页 Ctrl+V —— 剪贴板直接变便签：文本即正文；截图存文件后以图片链接入便签；
+    /// 复制的是文件时退回文件收纳。</summary>
     private void SaveClipboardAsNote()
     {
         try
         {
+            if (Clipboard.ContainsFileDropList()) { SaveClipboard(null); return; }
             string content;
             if (Clipboard.ContainsImage())
             {
@@ -439,22 +453,30 @@ public class MainForm : Form
         catch (Exception ex) { Log("clipboardToNote failed: " + ex.Message); }
     }
 
-    // P9: 面板可见期的 Ctrl+V 检测（30ms 键态边沿；贴边唤出不抢焦点，键盘事件到不了
-    // WebView，只能由 C# 侧检测后经 JS 按当前视图分流）。光标在面板内才触发，
-    // 避免用户在别的窗口粘贴时误收纳。
+    // P9: 面板可见期的 Ctrl+C / Ctrl+V 检测（30ms 键态边沿；贴边唤出不抢焦点，键盘事件到不了
+    // WebView，只能由 C# 侧检测后经 JS 分流）。光标在面板内才触发，避免用户在别的窗口操作时误伤。
+    // Ctrl+C = 复制光标下的文件到剪贴板（FileDrop，可粘贴到资源管理器/面板）；
+    // Ctrl+V = 粘贴收纳，JS 按当前视图与光标下的抽屉分组分流。
     private readonly System.Windows.Forms.Timer _pasteWatch = new() { Interval = 30 };
-    private bool _pasteWasDown;
+    private bool _pasteWasDown, _copyWasDown;
 
     private void PasteWatchTick()
     {
-        const int VK_CONTROL = 0x11, VK_V = 0x56;
-        var down = Native.IsKeyDown(VK_CONTROL) && Native.IsKeyDown(VK_V);
-        if (down && !_pasteWasDown)
+        const int VK_CONTROL = 0x11, VK_V = 0x56, VK_C = 0x43;
+        var ctrl = Native.IsKeyDown(VK_CONTROL);
+        var v = ctrl && Native.IsKeyDown(VK_V);
+        var c = ctrl && Native.IsKeyDown(VK_C);
+        if ((v && !_pasteWasDown) || (c && !_copyWasDown))
         {
             var (cx, cy) = Native.Cursor();
-            if (IsSelfAt(cx, cy)) PostToJs(new { type = "pasteDetected" });
+            if (IsSelfAt(cx, cy))
+            {
+                var (x, y) = ToCssPoint(new Native.POINTL { X = cx, Y = cy });
+                PostToJs(new { type = v ? "pasteDetected" : "copyDetected", x, y });
+            }
         }
-        _pasteWasDown = down;
+        _pasteWasDown = v;
+        _copyWasDown = c;
     }
 
     private void PushTrash()
@@ -575,12 +597,14 @@ public class MainForm : Form
                     PushFiles();
                     PushNotes();
                     PushTrash();
+                    PostToJs(new { type = "config", config = ConfigStore.Current });
                     break;
                 case "refresh":
                     _lastSignature = ComputeSignature();
                     PushFiles();
                     PushNotes();
                     PushTrash();
+                    PostToJs(new { type = "config", config = ConfigStore.Current });
                     break;
                 case "setPinned":
                     {
@@ -688,6 +712,12 @@ public class MainForm : Form
                         PushTrash();
                         break;
                     }
+                case "trashDelete":
+                    {
+                        TrashStore.Delete(msg.RootElement.GetProperty("id").GetString()!);
+                        PushTrash();
+                        break;
+                    }
                 case "trashEmpty":
                     {
                         TrashStore.Empty();
@@ -697,11 +727,36 @@ public class MainForm : Form
                         break;
                     }
                 case "clipboardSave":
-                    SaveClipboard();
+                    SaveClipboard(GetDrawer(msg.RootElement));
                     break;
                 case "clipboardToNote":
                     SaveClipboardAsNote();
                     break;
+                case "copyFiles":
+                    {
+                        // Ctrl+C：文件写入剪贴板 FileDrop（可粘贴到资源管理器/面板）
+                        var paths = msg.RootElement.GetProperty("files").EnumerateArray()
+                            .Select(el => FullPath(
+                                el.TryGetProperty("drawer", out var dv) && dv.ValueKind == JsonValueKind.String ? dv.GetString() : null,
+                                el.GetProperty("name").GetString()!))
+                            .Where(p => File.Exists(p) || Directory.Exists(p))
+                            .ToArray();
+                        if (paths.Length == 0) break;
+                        var list = new System.Collections.Specialized.StringCollection();
+                        list.AddRange(paths);
+                        Clipboard.SetFileDropList(list);
+                        break;
+                    }
+                case "setConfig":
+                    {
+                        var key = msg.RootElement.GetProperty("key").GetString()!;
+                        ConfigStore.Update(c =>
+                        {
+                            if (key == "trashAutoClearDays")
+                                c.trashAutoClearDays = msg.RootElement.GetProperty("value").GetInt32();
+                        });
+                        break;
+                    }
                 // ---------- P5: 白板便签 ----------
                 case "noteCreate":
                     {

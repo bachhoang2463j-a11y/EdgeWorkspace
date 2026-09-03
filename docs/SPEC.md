@@ -72,9 +72,11 @@ contextMenu/startDragOut`）都带 `drawer` 参数，路径 = `工作区/抽屉/
 - 排序按文件 mtime 倒序；改名会 Touch（顶到最前）；删除删文件并清标题
 - `index.json` 写入非原子（沿用裸 `Write.WriteAllText`，原子写为可选加固项）
 
-### 3.3 config.json
+### 3.3 config.json（P9 起接通，ConfigStore）
 
-csproj 中有 CopyToOutputDirectory，但当前工作区路径等并未接入（硬编码）；保留占位。
+exe 同目录，损坏时回退默认。当前字段：`trashAutoClearDays`（回收站自动清空天数，0=关闭，
+启动时执行）。P12 扩展：工作区路径、默认排序、开机自启。JS 侧经 `setConfig`/`config`
+消息读写，不直接碰文件。
 
 ## 4. C# ↔ JS 桥协议
 
@@ -95,8 +97,10 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `hitResult` | `{drawer}` 或 `{trash: true}` | 落点命中回执（对 C# hitTest 的应答） |
 | `moveFiles` | `{files: [{name, drawer}], drawer}` | 批量移动到目标抽屉/未分类 |
 | `deleteFiles` | `{files: [{name, drawer}]}` | 批量移入回收站 |
-| `trashRestore` / `trashEmpty` | `{id}` / — | 回收站恢复 / 清空 |
-| `clipboardSave` / `clipboardToNote` | — | Ctrl+V 收纳：文件视图存 PNG/txt 落未分类；白板页直接建便签（文本即正文，截图存文件后以 files.local 图片链接入便签） |
+| `trashRestore` / `trashDelete` / `trashEmpty` | `{id}` / `{id}` / — | 回收站恢复 / 单项彻底删除 / 清空 |
+| `clipboardSave` / `clipboardToNote` | `{drawer}` / — | Ctrl+V 收纳：文件视图粘贴到光标下抽屉分组（FileDrop 优先=资源管理器/面板复制的文件，其次截图/文本）；白板页直接建便签 |
+| `copyFiles` | `{files}` | Ctrl+C 文件写入剪贴板 FileDrop（可粘贴到资源管理器/面板，工作区内部通道） |
+| `setConfig` | `{key, value}` | 写设置项（现仅 trashAutoClearDays） |
 | `noteCopy` | `{content}` | 便签窗口「复制」按钮：整篇写入剪贴板 |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
 | `noteRename` | `{id, title}` | 改名（写 index.json + Touch + 重推） |
@@ -114,7 +118,9 @@ C# → JS（`PostWebMessageAsJson`）：
 | `dragHover` | `{x, y}` | 拖放悬停坐标（CSS 像素，80ms 节流；x<0 清除高亮），前端高亮抽屉横栏 |
 | `hitTest` | `{x, y}` | 松手落点（CSS 像素），前端 elementFromPoint 命中分组后回 `hitResult` |
 | `trash` | `{items: [{id, name, drawer, deletedAt}]}` | 启动/增删/恢复/清空后推送回收站清单 |
-| `pasteDetected` | — | 面板可见期 C# 键态检测到 Ctrl+V（30ms 边沿、光标在面板内才触发，弥补唤出不抢焦点收不到键盘）；前端按当前视图分流 |
+| `pasteDetected` | `{x, y}` | 面板可见期 C# 键态检测到 Ctrl+V（30ms 边沿、光标在面板内才触发）；前端按视图分流，文件视图按坐标命中抽屉分组为粘贴目标 |
+| `copyDetected` | `{x, y}` | 同上，Ctrl+C：前端命中光标下的文件卡（选择模式=整组）回 `copyFiles` |
+| `config` | `{config}` | ready/refresh/setConfig 后推送设置项 |
 
 ### 4.2 便签窗口页（note.html / note.js）
 
