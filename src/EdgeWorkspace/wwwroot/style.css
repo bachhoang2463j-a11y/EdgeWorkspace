@@ -43,7 +43,7 @@ html[data-theme="acrylic"] {
   --border-color: rgba(255, 255, 255, 0.60);
   --border-subtle: rgba(255, 255, 255, 0.30);
   --tab-active-bg: rgba(255, 255, 255, 0.90);
-  --overlay-bg: rgba(255, 255, 255, 0.92);
+  --overlay-bg: rgba(255, 255, 255, 0.97);   /* 覆盖层必须接近不透明，透出底层内容不可读 */
   --sticky-bg: rgba(254, 252, 232, 0.88);
   --sticky-bg-soft: rgba(255, 251, 235, 0.88);
   --sticky-hover: rgba(254, 249, 195, 0.82);
@@ -481,7 +481,7 @@ body {
 
 /* 设置面板（覆盖整个抽屉；分组+行结构，P12 扩展用） */
 .settings-panel {
-  position: absolute; inset: 0; z-index: 50;
+  position: absolute; inset: 0; z-index: 66;   /* 盖过底栏(65)/归档面板(64)，仅次于 emoji 选择器(70) */
   background: var(--overlay-bg);
   display: flex; flex-direction: column;
 }

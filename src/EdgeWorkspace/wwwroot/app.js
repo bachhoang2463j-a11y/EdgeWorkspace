@@ -636,6 +636,15 @@ function fileUrl(it) {
   return 'https://files.local/' + segs + encodeURIComponent(it.name);
 }
 
+// 复制 MD 链接用的可读 URL：中文保持明文（%E7%9C%9F… 对用户就是乱码），
+// 仅编码会破坏 Markdown 链接语法或 URL 结构的字符（括号/空格/#?%& 等）。
+function prettyUrl(it) {
+  const enc = s => s.replace(/[ ()<>"\\^`{|}%#?&]/g,
+    c => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+  const segs = it.drawer ? it.drawer.split('/').map(enc).join('/') + '/' : '';
+  return 'https://files.local/' + segs + enc(it.name);
+}
+
 function buildFileCard(it) {
   const card = document.createElement('div');
   card.className = 'file-card';
@@ -699,7 +708,7 @@ function buildFileCard(it) {
   link.title = '复制 Markdown 链接';
   link.addEventListener('click', e => {
     e.stopPropagation();
-    const url = fileUrl(it);
+    const url = prettyUrl(it);
     post('copyText', {
       text: it.kind === 'image' ? '![' + it.name + '](' + url + ')' : '[' + it.name + '](' + url + ')',
     });
