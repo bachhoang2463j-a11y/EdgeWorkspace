@@ -152,8 +152,9 @@ function fmtSize(bytes) {
 }
 
 // ---------- 文件渲染（v2 柱1：抽屉分组） ----------
-// 抽屉 = 工作区根目录子文件夹；未分类 = 根目录散文件。折叠状态记忆在 localStorage。
-const collapsedDrawers = new Set(JSON.parse(localStorage.getItem('ews-collapsed') || '[]'));
+// 抽屉 = 工作区根目录子文件夹；未分类 = 根目录散文件。
+// 折叠状态记忆走 config.json（C# 落盘，跨重启可靠；appConfig.collapsedDrawers）。
+let collapsedDrawers = new Set();
 
 function renderGrid() {
   const grid = document.getElementById('fileGrid');
@@ -214,7 +215,7 @@ function buildSection(drawer, items) {
   header.addEventListener('click', () => {
     const collapsed = group.classList.toggle('collapsed');
     if (collapsed) collapsedDrawers.add(key); else collapsedDrawers.delete(key);
-    localStorage.setItem('ews-collapsed', JSON.stringify([...collapsedDrawers]));
+    post('setConfig', { key: 'collapsedDrawers', value: [...collapsedDrawers] });
   });
   // 抽屉横栏右键 = 该文件夹的 Shell 菜单（改名/删除走系统原生）
   if (drawer !== null) {
@@ -390,8 +391,10 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'config': {
-      // 设置项（C# ready/refresh 推送）；P12 扩展后在此回填各控件
+      // 设置项（C# ready/refresh 推送）；含抽屉折叠状态 -> 应用并重渲染
       appConfig = msg.config || {};
+      collapsedDrawers = new Set(appConfig.collapsedDrawers || []);
+      if (currentTab !== 'whiteboard') renderGrid();
       break;
     }
   }

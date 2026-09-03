@@ -258,7 +258,7 @@ public class MainForm : Form
             else
             {
                 BeginExpand();
-                SetFrontTab("whiteboard");
+                SetFrontTab("all");   // 热键固定唤出【全部】；鼠标贴边才按上下半屏分流
                 Activate();   // 无视当前焦点：抢到前台并置顶（TopMost）
             }
             return;
@@ -695,8 +695,16 @@ public class MainForm : Form
                         break;
                     }
                 case "setConfig":
-                    // 设置项写入（独立回收站移除后暂无活动项；P12 扩展：工作区路径/默认排序/开机自启）
-                    break;
+                    {
+                        var key = msg.RootElement.GetProperty("key").GetString()!;
+                        ConfigStore.Update(c =>
+                        {
+                            if (key == "collapsedDrawers")   // 抽屉折叠状态记忆（跨重启；''=未分类）
+                                c.collapsedDrawers = msg.RootElement.GetProperty("value").EnumerateArray()
+                                    .Select(x => x.GetString() ?? "").ToList();
+                        });
+                        break;
+                    }
                 // ---------- P5: 白板便签 ----------
                 case "noteCreate":
                     {

@@ -154,8 +154,8 @@ C# → JS（`PostWebMessageAsJson`）：
 
 ### 5.3 热键
 
-`Ctrl+Shift+Z`（RegisterHotKey 全局，无视焦点）：可见→收起；隐藏→唤出 + 切白板 +
-`Activate()` 抢前台置顶（P7）。
+`Ctrl+Shift+Z`（RegisterHotKey 全局，无视焦点）：可见→收起；隐藏→唤出 + **固定切【全部】**
++ `Activate()` 抢前台置顶（P7/P9）。鼠标贴边唤出才按上下半屏分流（§5.2）。
 
 ### 5.4 拖放（P7 彻底修复）
 
@@ -288,7 +288,7 @@ txt/md 文件直接用便签窗口打开+编辑+保存，保存后 PushFiles 刷
 
 | 期 | 内容 |
 |---|---|
-| P8 地基 | 两级扫描 + 抽屉分组渲染（section-group 折叠/localStorage 记忆）+ meta.json 骨架 + 上下半屏分流 ✅ + MD 换行修复 ✅ |
+| P8 地基 | 两级扫描 + 抽屉分组渲染（section-group 折叠/config.json 记忆）+ meta.json 骨架 + 上下半屏分流 ✅ + MD 换行修复 ✅ |
 | P9 收纳 | OLE 自落命中抽屉间移动 · 去重对话框 · 批量选择模式（头部「选择」开关 + 操作条：移入抽屉/删除/全选）· Ctrl+V 剪贴板收纳（C# Clipboard 读图/文本落盘）· 回收站与恢复 |
 | P10 查找 | 名称过滤框（跨抽屉）· 排序切换（名称/时间/大小/类型/常用，置顶恒优先，选择落 config）· 置顶 ⭐ 交互 |
 | P11 预览 | txt/md 便签窗口打开（NoteWindow 泛化）· 图片灯箱（面板内遮罩大图）· 视频悬停静音播放 · 文件进便签（V1 简化：右键「复制 Markdown 链接」；跨 WebView 直拖受 Chromium 无文件路径限制，后续评估） |
