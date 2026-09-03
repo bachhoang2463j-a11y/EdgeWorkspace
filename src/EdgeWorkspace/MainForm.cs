@@ -786,6 +786,12 @@ public class MainForm : Form
                         PushFiles();
                         break;
                     }
+                case "copyText":
+                    {
+                        // P11: 预窗「复制 Markdown 链接」等通用剪贴板文本写入
+                        Clipboard.SetText(msg.RootElement.GetProperty("text").GetString() ?? "");
+                        break;
+                    }
                 // ---------- P5: 白板便签 ----------
                 case "noteCreate":
                     {
@@ -860,9 +866,17 @@ public class MainForm : Form
             if (w.IsDisposed) _noteWindows.Remove(id);
             else { w.Show(); w.Activate(); return; }
         }
-        w = new NoteWindow(id, _env!, PushNotes);
+        w = new NoteWindow(id, _env!, NotifyNoteChanged);
         w.FormClosed += (_, _) => _noteWindows.Remove(id);
         _noteWindows[id] = w;
         w.Show();
+    }
+
+    /// <summary>P11: 便签变更广播——刷新面板白板 + 重推所有打开的便签窗口（跨窗口同步）。</summary>
+    private void NotifyNoteChanged(string id)
+    {
+        PushNotes();
+        foreach (var w in _noteWindows.Values)
+            w.RefreshNote(id);
     }
 }

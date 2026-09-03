@@ -14,10 +14,10 @@ public sealed class NoteWindow : Form
     private readonly WebView2 _web = new() { Dock = DockStyle.Fill };
     private readonly CoreWebView2Environment _env;
     private readonly string _id;
-    private readonly Action _notesChanged; // 保存/改名后让主面板刷新白板
+    private readonly Action<string> _notesChanged;   // 保存/改名后广播（带 id，跨窗口同步）
     private CoreWebView2? _core;
 
-    public NoteWindow(string id, CoreWebView2Environment env, Action notesChanged)
+    public NoteWindow(string id, CoreWebView2Environment env, Action<string> notesChanged)
     {
         _id = id;
         _env = env;
@@ -57,14 +57,14 @@ public sealed class NoteWindow : Form
                     break;
                 case "noteSave":
                     NoteStore.Save(_id, msg.RootElement.GetProperty("content").GetString() ?? "");
-                    _notesChanged();
+                    _notesChanged(_id);
                     break;
                 case "noteRename":
                     {
                         var title = msg.RootElement.GetProperty("title").GetString() ?? "";
                         NoteStore.Rename(_id, title);
                         Text = title != "" ? title : "便签";
-                        _notesChanged();
+                        _notesChanged(_id);
                         break;
                     }
                 case "openLink":
@@ -93,5 +93,12 @@ public sealed class NoteWindow : Form
         Text = n.Title != "" ? n.Title : "便签";
         var json = JsonSerializer.Serialize(new { type = "note", note = n }, MainForm.JsonOpts);
         _core!.PostWebMessageAsJson(json);
+    }
+
+    /// <summary>P11: 别的窗口改了这张便签 -> 重推数据刷新本窗
+    /// （note.js 在编辑态会忽略推送，不会覆盖正在输入的内容）。</summary>
+    public void RefreshNote(string id)
+    {
+        if (id == _id && _core is not null) SendNote();
     }
 }

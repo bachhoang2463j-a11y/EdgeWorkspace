@@ -22,6 +22,7 @@ window.addEventListener('DOMContentLoaded', () => {
   bindButtons();
   bindSelectBar();
   bindSearch();
+  bindPreview();
   // Ctrl+V 收纳走 C# 键态检测（pasteDetected 消息）：贴边唤出不抢焦点，
   // WebView 收不到键盘事件，必须由 C# 侧检测后回传分流。
   post('ready');
@@ -182,6 +183,74 @@ function fmtSize(bytes) {
   let i = 0, v = bytes;
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return (i === 0 ? v : v.toFixed(1)) + ' ' + units[i];
+}
+
+// ---------- P11: 悬浮预览 ----------
+// 悬停卡片 800ms -> 大预窗（图片/视频/文本/PDF）；预开中切卡片 120ms 加速切换。
+// 全部用 img/video/iframe 直载 files.local（媒体元素不受 CORS 限制，文本/PDF 走
+// Chromium 原生渲染），无需 C# 读文件。选择模式下不预览。
+const TEXT_EXTS = new Set(['txt','log','md','markdown','ini','cfg','conf','yml','yaml','nfo','tres','csv','json','xml','html','htm','css','scss','js','ts','jsx','tsx','py','lua','c','cpp','h','cs','java','go','rs','php','rb','sh','ps1','vbs','sql','toml']);
+
+let hoverTimer = null;
+let closeTimer = null;
+let previewItem = null;
+const isPreviewOpen = () => previewItem !== null;
+
+function showPreview(it) {
+  clearTimeout(closeTimer);
+  previewItem = it;
+  const box = document.getElementById('previewBox');
+  const url = fileUrl(it);
+  if (it.kind === 'image')
+    box.innerHTML = '<img src="' + url + '" alt="">';
+  else if (it.kind === 'video')
+    box.innerHTML = '<video src="' + url + '" autoplay muted loop controls></video>';
+  else if (it.ext === 'pdf' || TEXT_EXTS.has(it.ext.toLowerCase()))
+    box.innerHTML = '<iframe src="' + url + '"></iframe>';
+  else return;   // 其余类型不预览
+  document.getElementById('previewName').textContent = (it.drawer ? it.drawer + '/' : '') + it.name;
+  document.getElementById('previewOverlay').hidden = false;
+}
+
+function closePreview() {
+  clearTimeout(hoverTimer);
+  clearTimeout(closeTimer);
+  previewItem = null;
+  document.getElementById('previewOverlay').hidden = true;
+  document.getElementById('previewBox').innerHTML = '';
+}
+
+function schedulePreviewClose() {
+  clearTimeout(closeTimer);
+  closeTimer = setTimeout(() => {
+    // 只有既不在预窗上、也没悬到别的卡片时才真正关（卡片 mouseenter 会取消）
+    if (!previewWindowHovered) closePreview();
+  }, 400);
+}
+
+let previewWindowHovered = false;
+
+function bindPreview() {
+  const overlay = document.getElementById('previewOverlay');
+  const win = overlay.querySelector('.preview-window');
+  win.addEventListener('mouseenter', () => { previewWindowHovered = true; clearTimeout(closeTimer); });
+  win.addEventListener('mouseleave', () => { previewWindowHovered = false; schedulePreviewClose(); });
+  document.getElementById('previewClose').addEventListener('click', closePreview);
+  document.getElementById('previewCopy').addEventListener('click', () => {
+    if (!previewItem) return;
+    const url = fileUrl(previewItem);
+    const md = previewItem.kind === 'image'
+      ? '![' + previewItem.name + '](' + url + ')'
+      : '[' + previewItem.name + '](' + url + ')';
+    post('copyText', { text: md });
+    const b = document.getElementById('previewCopy');
+    b.textContent = '已复制 ✓';
+    setTimeout(() => { b.textContent = '复制 MD 链接'; }, 1200);
+  });
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isPreviewOpen() &&
+        !(e.target instanceof Element && e.target.closest('input, textarea, select'))) closePreview();
+  });
 }
 
 // ---------- 文件渲染（v2 柱1：抽屉分组） ----------
@@ -421,6 +490,11 @@ function renameDrawer(labelEl, drawerPath) {
   });
 }
 
+function fileUrl(it) {
+  const segs = it.drawer ? it.drawer.split('/').map(encodeURIComponent).join('/') + '/' : '';
+  return 'https://files.local/' + segs + encodeURIComponent(it.name);
+}
+
 function buildFileCard(it) {
   const card = document.createElement('div');
   card.className = 'file-card';
@@ -431,11 +505,9 @@ function buildFileCard(it) {
   // P7：图片/视频直接出缩略图，读不了的格式回退图标；抽屉路径按段编码（'/' 不转义）
   const thumb = document.createElement('div');
   thumb.className = 'file-thumb-box';
-  const drawerSegs = it.drawer ? it.drawer.split('/').map(encodeURIComponent).join('/') + '/' : '';
-  const fileUrl = 'https://files.local/' + drawerSegs + encodeURIComponent(it.name);
   if (it.kind === 'image') {
     const img = document.createElement('img');
-    img.src = fileUrl;
+    img.src = fileUrl(it);
     img.alt = it.name;
     img.loading = 'lazy';
     img.addEventListener('error', () => {
@@ -444,7 +516,7 @@ function buildFileCard(it) {
     thumb.append(img);
   } else if (it.kind === 'video') {
     const v = document.createElement('video');
-    v.src = fileUrl + '#t=1';   // 媒体片段：直接显示第 1 秒画面
+    v.src = fileUrl(it) + '#t=1';   // 媒体片段：直接显示第 1 秒画面
     v.preload = 'metadata';
     v.muted = true;
     v.addEventListener('error', () => {
@@ -478,6 +550,18 @@ function buildFileCard(it) {
     post('pinFile', { name: it.name, drawer: it.drawer ?? null, pinned: !it.pinned });
   });
   card.append(star);
+
+  // P11：悬停 800ms -> 大预窗（选择模式下不预览）
+  card.addEventListener('mouseenter', () => {
+    if (selectMode) return;
+    clearTimeout(hoverTimer);
+    clearTimeout(closeTimer);   // 从预窗/别的卡片滑过来，别让它关
+    hoverTimer = setTimeout(() => showPreview(it), isPreviewOpen() ? 120 : 800);
+  });
+  card.addEventListener('mouseleave', () => {
+    clearTimeout(hoverTimer);
+    if (isPreviewOpen()) schedulePreviewClose();
+  });
 
   // P4 交互（v2：全部带 drawer 定位）；P9 选择模式下点击 = 勾选而非打开
   const key = keyOf(it);

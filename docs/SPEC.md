@@ -106,6 +106,7 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `copyFiles` | `{files}` | Ctrl+C 文件写入剪贴板 FileDrop（可粘贴到资源管理器/面板，工作区内部通道） |
 | `setConfig` | `{key, value}` | 写设置项（collapsedDrawers / sortMode / drawerOrder） |
 | `pinFile` | `{name, drawer, pinned}` | 文件置顶切换（meta.json + 重推） |
+| `copyText` | `{text}` | 通用剪贴板文本写入（预窗复制 Markdown 链接等） |
 | `noteCopy` | `{content}` | 便签窗口「复制」按钮：整篇写入剪贴板 |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
 | `noteRename` | `{id, title}` | 改名（写 index.json + Touch + 重推） |
@@ -226,6 +227,20 @@ C# → JS（`PostWebMessageAsJson`）：
 - **置顶**：卡片右上角星标（已置顶恒显 ★，未置顶悬停显 ☆），点击切换 ->
   `pinFile` -> FileMetaStore.SetPinned（meta.json 落盘）-> 重推 files（星标与排序即时刷新）
 
+### 5.8 悬浮预览与便签广播（P11）
+
+- **悬浮预览**：悬停文件卡片 ≥800ms -> 面板内居中大预窗（图片 img / 视频 video
+  自动静音循环+控制条 / 文本与 PDF iframe 走 Chromium 原生渲染），全部直载 files.local
+  ——媒体元素不受 CORS 限制，**无需 C# 读文件**。预窗开启后切卡片 120ms 加速切换；
+  离开预窗与卡片 400ms 后关闭，✕/Esc 立即关；选择模式下不预览；覆盖层 pointer-events
+  穿透（不挡滑向别的卡片）。**应用内大窗打开与灯箱已按用户决策移除**：点击一律
+  openPath 走系统默认程序。
+- **文件进便签 V1**：预窗标题栏「复制 MD 链接」按钮 -> `copyText`（图片 `![](url)`、
+  其余 `[名](url)`）-> 粘贴进便签编辑器即成链接/内嵌图。
+- **便签跨窗口同步广播**：任一便签窗口保存/改名 -> `NotifyNoteChanged(id)` ->
+  面板 PushNotes + 重推所有打开的便签窗口（编辑态窗口忽略推送，不覆盖正在输入的内容）。
+  这是 P13 主题/贴纸广播的同一套 fan-out 模式。
+
 ## 6. 分类口径（kind 映射）与缩略图
 
 | kind | 扩展名 |
@@ -310,7 +325,7 @@ txt/md 文件直接用便签窗口打开+编辑+保存，保存后 PushFiles 刷
 | P8 地基 | 两级扫描 + 抽屉分组渲染（section-group 折叠/config.json 记忆）+ meta.json 骨架 + 上下半屏分流 ✅ + MD 换行修复 ✅ |
 | P9 收纳 | OLE 自落命中抽屉间移动 · 去重对话框 · 批量选择模式（头部「选择」开关 + 操作条：移入抽屉/删除/全选）· Ctrl+V 剪贴板收纳（C# Clipboard 读图/文本落盘）· 回收站与恢复 |
 | P10 查找 | 名称过滤框（跨抽屉）· 排序切换（名称/时间/大小/类型/常用，置顶恒优先，选择落 config）· 置顶 ⭐ 交互 |
-| P11 预览 | txt/md 便签窗口打开（NoteWindow 泛化）· 图片灯箱（面板内遮罩大图）· 视频悬停静音播放 · 文件进便签（V1 简化：右键「复制 Markdown 链接」；跨 WebView 直拖受 Chromium 无文件路径限制，后续评估） |
+| P11 预览 ✅ | 悬浮预览（悬停 800ms，图片/视频/文本/PDF，见 §5.8；应用内大窗打开与灯箱按用户决策移除，点击一律系统程序）· 预窗复制 Markdown 链接（文件进便签 V1）· 便签跨窗口同步广播 |
 | P12 生命周期 | 过期灰显 + 计数 + 一键归档 · 设置面板（工作区路径 FolderBrowserDialog / 默认排序 / 过期天数 / 开机自启） |
 | P13 皮肤与桌面贴纸 | 毛玻璃皮肤首发（主题机制保留扩展性，见 §9.4）· 桌面置顶小便签（纯文本渲染，见 §9.4） |
 | P14 性能动效 | 事件委托、滚动保持、content-visibility、渲染节流、动画统一走合成器 |
