@@ -76,9 +76,6 @@ function bindButtons() {
   document.getElementById('btnSettingsClose').addEventListener('click', () => {
     document.getElementById('settingsPanel').hidden = true;
   });
-  document.getElementById('setTrashAuto').addEventListener('change', e => {
-    post('setConfig', { key: 'trashAutoClearDays', value: Number(e.target.value) });
-  });
 }
 
 // ---------- P9: 批量选择模式 ----------
@@ -188,90 +185,8 @@ function renderGrid() {
   });
   frag.append(add);
 
-  const trash = buildTrashSection();
-  frag.append(trash);
-
   grid.replaceChildren(frag);
   updateBadges();
-}
-
-// ---------- P9: 回收站分组（数据由 C# trash 消息推送，常驻显示；空时默认折叠） ----------
-let trashItems = [];
-const TRASH_KEY = '\u0000trash';   // 折叠状态键（与抽屉名空间隔离）
-
-function buildTrashSection() {
-  const group = document.createElement('div');
-  const collapsed = trashItems.length === 0 || collapsedDrawers.has(TRASH_KEY);
-  group.className = 'section-group' + (collapsed ? ' collapsed' : '');
-  group.dataset.trash = '1';   // 落点命中：拖到回收站 = 删除
-
-  const header = document.createElement('div');
-  header.className = 'section-header';
-  const titleBox = document.createElement('div');
-  titleBox.className = 'section-title-box';
-  titleBox.innerHTML =
-    '<svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-  const label = document.createElement('span');
-  label.textContent = '🗑 回收站';
-  titleBox.append(label);
-  const divider = document.createElement('div');
-  divider.className = 'section-divider-line';
-  const count = document.createElement('span');
-  count.className = 'section-count';
-  count.textContent = trashItems.length + ' 项';
-  header.append(titleBox, divider, count);
-
-  const emptyBtn = document.createElement('button');
-  emptyBtn.className = 'trash-restore trash-empty-btn';
-  emptyBtn.textContent = '清空';
-  emptyBtn.title = '彻底删除全部回收站内容';
-  emptyBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    if (trashItems.length && confirm('清空回收站？共 ' + trashItems.length + ' 项，不可恢复。')) post('trashEmpty');
-  });
-  if (trashItems.length) header.append(emptyBtn);
-
-  header.addEventListener('click', () => {
-    const collapsed = group.classList.toggle('collapsed');
-    if (collapsed) collapsedDrawers.add(TRASH_KEY); else collapsedDrawers.delete(TRASH_KEY);
-    localStorage.setItem('ews-collapsed', JSON.stringify([...collapsedDrawers]));
-  });
-  header.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    if (trashItems.length && confirm('清空回收站？共 ' + trashItems.length + ' 项，不可恢复。')) post('trashEmpty');
-  });
-
-  const list = document.createElement('div');
-  list.className = 'trash-list';
-  for (const t of trashItems) {
-    const row = document.createElement('div');
-    row.className = 'trash-row';
-    const name = document.createElement('span');
-    name.className = 'trash-row-name';
-    name.textContent = t.name;
-    name.title = (t.drawer ? t.drawer + '/' : '') + t.name + ' · ' + t.deletedAt + ' 删除';
-    const restore = document.createElement('button');
-    restore.className = 'trash-restore';
-    restore.textContent = '恢复';
-    restore.title = '恢复到 ' + (t.drawer || '未分类');
-    restore.addEventListener('click', e => {
-      e.stopPropagation();
-      post('trashRestore', { id: t.id });
-    });
-    const purge = document.createElement('button');
-    purge.className = 'trash-restore trash-purge';
-    purge.textContent = '彻底删除';
-    purge.title = '从磁盘永久删除，不可恢复';
-    purge.addEventListener('click', e => {
-      e.stopPropagation();
-      if (confirm('彻底删除「' + t.name + '」？不可恢复。')) post('trashDelete', { id: t.id });
-    });
-    row.append(name, restore, purge);
-    list.append(row);
-  }
-
-  group.append(header, list);
-  return group;
 }
 
 function buildSection(drawer, items) {
@@ -424,17 +339,28 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'hitTest': {
-      // 落点命中哪个分组：抽屉名 / null(未分类或空白) / trash
+      // 落点命中哪个分组：抽屉名 / null(未分类或空白)
       const el = document.elementFromPoint(msg.x, msg.y);
       const sec = el instanceof Element ? el.closest('.section-group') : null;
-      if (sec && sec.dataset.trash) post('hitResult', { trash: true });
-      else post('hitResult', { drawer: sec ? (sec.dataset.drawer || null) : null });
+      post('hitResult', { drawer: sec ? (sec.dataset.drawer || null) : null });
       break;
     }
-    case 'trash':
-      trashItems = msg.items || [];
-      if (currentTab !== 'whiteboard') renderGrid();
+    case 'delDetected': {
+      // Del 键：选中组优先，否则光标下的文件 -> 系统回收站。输入框聚焦时不拦截。
+      const focus = document.activeElement;
+      if (focus instanceof Element && focus.closest('input, textarea, select')) break;
+      let files = null;
+      if (selectMode && selectedKeys.size) {
+        files = selectedFiles();
+      } else {
+        const el = document.elementFromPoint(msg.x, msg.y);
+        const card = el instanceof Element ? el.closest('.file-card') : null;
+        if (card && card.dataset.name)
+          files = [{ name: card.dataset.name, drawer: card.dataset.drawer || null }];
+      }
+      if (files && files.length) post('deleteFiles', { files });
       break;
+    }
     case 'pasteDetected': {
       // 光标在面板时的 Ctrl+V（C# 键态检测，无需焦点）。输入框聚焦时不拦截正常粘贴；
       // 文件视图 = 收纳到光标下的抽屉分组（无分组=未分类），白板页 = 直接建便签。
@@ -443,8 +369,7 @@ bridge?.addEventListener('message', e => {
       if (currentTab === 'whiteboard') { post('clipboardToNote'); break; }
       const el = document.elementFromPoint(msg.x, msg.y);
       const sec = el instanceof Element ? el.closest('.section-group') : null;
-      const drawer = sec && !sec.dataset.trash ? (sec.dataset.drawer || null) : null;
-      post('clipboardSave', { drawer });
+      post('clipboardSave', { drawer: sec ? (sec.dataset.drawer || null) : null });
       break;
     }
     case 'copyDetected': {
@@ -465,9 +390,8 @@ bridge?.addEventListener('message', e => {
       break;
     }
     case 'config': {
-      // 设置项（C# ready/refresh 推送）
+      // 设置项（C# ready/refresh 推送）；P12 扩展后在此回填各控件
       appConfig = msg.config || {};
-      document.getElementById('setTrashAuto').value = String(appConfig.trashAutoClearDays ?? 0);
       break;
     }
   }

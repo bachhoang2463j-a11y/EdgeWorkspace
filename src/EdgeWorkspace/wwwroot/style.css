@@ -284,28 +284,6 @@ body {
   max-width: 120px;
 }
 
-/* P9: 回收站分组行 */
-.trash-list { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
-.section-group.collapsed .trash-list { display: none; }
-.trash-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  font-size: 12px; color: var(--text-sub); padding: 3px 6px; border-radius: 6px;
-}
-.trash-row:hover { background: var(--border-subtle); }
-.trash-row-name {
-  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  text-decoration: line-through; text-decoration-color: var(--text-muted);
-}
-.trash-restore {
-  border: none; background: transparent; color: var(--primary); cursor: pointer;
-  font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; font-family: inherit;
-}
-.trash-restore:hover { background: var(--primary-light); }
-.trash-purge { color: var(--text-muted); }
-.trash-purge:hover { color: #dc2626; background: rgba(220,38,38,.08); }
-.trash-empty-btn { margin-left: 8px; color: var(--text-muted); }
-.trash-empty-btn:hover { color: #dc2626; background: rgba(220,38,38,.08); }
-
 /* 设置面板（覆盖整个抽屉；分组+行结构，P12 扩展用） */
 .settings-panel {
   position: absolute; inset: 0; z-index: 50;

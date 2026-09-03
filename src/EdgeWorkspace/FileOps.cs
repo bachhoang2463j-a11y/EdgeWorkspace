@@ -129,6 +129,39 @@ public static class FileOps
         }
     }
 
+    // ---------- 删除（系统回收站） ----------
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SHFILEOPSTRUCTW
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        public string pFrom;
+        public string pTo;
+        public ushort fFlags;
+        public bool fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        public string lpszProgressTitle;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHFileOperationW")]
+    private static extern int SHFileOperationW(ref SHFILEOPSTRUCTW op);
+
+    /// <summary>删除到系统回收站（FOF_ALLOWUNDO）。</summary>
+    public static void SendToRecycleBin(string path)
+    {
+        var op = new SHFILEOPSTRUCTW
+        {
+            wFunc = 3,   // FO_DELETE
+            pFrom = path + "\0\0",   // 双 \0 结尾
+            fFlags = 0x0040   // FOF_ALLOWUNDO
+                   | 0x0010   // FOF_NOCONFIRMATION
+                   | 0x0004   // FOF_SILENT
+                   | 0x0200,  // FOF_NOERRORUI
+        };
+        SHFileOperationW(ref op);
+    }
+
     // ---------- Shell 原生右键菜单 ----------
 
     public static event Action<string>? LogLine;

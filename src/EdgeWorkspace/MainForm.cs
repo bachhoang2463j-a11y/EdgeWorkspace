@@ -90,7 +90,6 @@ public class MainForm : Form
             _core.Navigate("https://app.local/index.html");
 
             StartWatcher();
-            TrashStore.AutoClear(ConfigStore.Current.trashAutoClearDays);   // 回收站自动清空（P9）
             _poll.Tick += (_, _) => PushFilesIfChanged();
             _poll.Start();
 
@@ -371,27 +370,6 @@ public class MainForm : Form
         PushFiles();
     }
 
-    /// <summary>拖到回收站分组上 = 删除（仅工作区内部文件）。</summary>
-    private void CompletePendingTrash()
-    {
-        _dropTimeout.Stop();
-        if (_pendingDrop is not { } files) return;
-        _pendingDrop = null;
-        Log("Drop -> 回收站: " + files.Length + " 个文件");
-        foreach (var f in files)
-        {
-            if (!f.StartsWith(WorkspacePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                continue;   // 外部文件先收纳，不直接进回收站
-            var rel = Path.GetRelativePath(WorkspacePath, f);
-            var parts = rel.Split(Path.DirectorySeparatorChar);
-            try { TrashStore.Add(f, parts.Length > 1 ? parts[0] : null); }
-            catch (Exception ex) { Log("trash failed: " + f + " - " + ex.Message); }
-        }
-        _lastSignature = ComputeSignature();
-        PushFiles();
-        PushTrash();
-    }
-
     /// <summary>P9: Ctrl+V 粘贴收纳（drawer = 光标下的抽屉分组）。优先文件（FileDrop，
     /// 来自资源管理器或面板自身的复制），其次截图/文本。</summary>
     private void SaveClipboard(string? drawer)
@@ -453,36 +431,34 @@ public class MainForm : Form
         catch (Exception ex) { Log("clipboardToNote failed: " + ex.Message); }
     }
 
-    // P9: 面板可见期的 Ctrl+C / Ctrl+V 检测（30ms 键态边沿；贴边唤出不抢焦点，键盘事件到不了
+    // P9: 面板可见期的 Ctrl+C / Ctrl+V / Del 检测（30ms 键态边沿；贴边唤出不抢焦点，键盘事件到不了
     // WebView，只能由 C# 侧检测后经 JS 分流）。光标在面板内才触发，避免用户在别的窗口操作时误伤。
     // Ctrl+C = 复制光标下的文件到剪贴板（FileDrop，可粘贴到资源管理器/面板）；
-    // Ctrl+V = 粘贴收纳，JS 按当前视图与光标下的抽屉分组分流。
+    // Ctrl+V = 粘贴收纳，JS 按当前视图与光标下的抽屉分组分流；
+    // Del = 删除（选中组或光标下的文件）到系统回收站。
     private readonly System.Windows.Forms.Timer _pasteWatch = new() { Interval = 30 };
-    private bool _pasteWasDown, _copyWasDown;
+    private bool _pasteWasDown, _copyWasDown, _delWasDown;
 
     private void PasteWatchTick()
     {
-        const int VK_CONTROL = 0x11, VK_V = 0x56, VK_C = 0x43;
+        const int VK_CONTROL = 0x11, VK_V = 0x56, VK_C = 0x43, VK_DELETE = 0x2E;
         var ctrl = Native.IsKeyDown(VK_CONTROL);
         var v = ctrl && Native.IsKeyDown(VK_V);
         var c = ctrl && Native.IsKeyDown(VK_C);
-        if ((v && !_pasteWasDown) || (c && !_copyWasDown))
+        var del = Native.IsKeyDown(VK_DELETE);
+        if ((v && !_pasteWasDown) || (c && !_copyWasDown) || (del && !_delWasDown))
         {
             var (cx, cy) = Native.Cursor();
             if (IsSelfAt(cx, cy))
             {
                 var (x, y) = ToCssPoint(new Native.POINTL { X = cx, Y = cy });
-                PostToJs(new { type = v ? "pasteDetected" : "copyDetected", x, y });
+                var type = v ? "pasteDetected" : c ? "copyDetected" : "delDetected";
+                PostToJs(new { type, x, y });
             }
         }
         _pasteWasDown = v;
         _copyWasDown = c;
-    }
-
-    private void PushTrash()
-    {
-        if (_core is null || !_bridgeReady) return;
-        PostToJs(new { type = "trash", items = TrashStore.List() });
+        _delWasDown = del;
     }
 
     // ---------- P1: 文件列表 ----------
@@ -596,14 +572,12 @@ public class MainForm : Form
                     _lastSignature = ComputeSignature();
                     PushFiles();
                     PushNotes();
-                    PushTrash();
                     PostToJs(new { type = "config", config = ConfigStore.Current });
                     break;
                 case "refresh":
                     _lastSignature = ComputeSignature();
                     PushFiles();
                     PushNotes();
-                    PushTrash();
                     PostToJs(new { type = "config", config = ConfigStore.Current });
                     break;
                 case "setPinned":
@@ -668,13 +642,8 @@ public class MainForm : Form
                     }
                 // ---------- P9: 批量操作 / 回收站 / 剪贴板 ----------
                 case "hitResult":
-                    {
-                        if (msg.RootElement.TryGetProperty("trash", out var tv) && tv.GetBoolean())
-                            CompletePendingTrash();
-                        else
-                            CompletePendingDrop(GetDrawer(msg.RootElement));
-                        break;
-                    }
+                    CompletePendingDrop(GetDrawer(msg.RootElement));
+                    break;
                 case "moveFiles":
                     {
                         var target = GetDrawer(msg.RootElement);
@@ -692,38 +661,16 @@ public class MainForm : Form
                     }
                 case "deleteFiles":
                     {
+                        // 删除 = 系统回收站（选择模式「删除」/ Del 键）
                         foreach (var el in msg.RootElement.GetProperty("files").EnumerateArray())
                         {
                             var name = el.GetProperty("name").GetString()!;
                             var drawer = el.TryGetProperty("drawer", out var dv) && dv.ValueKind == JsonValueKind.String ? dv.GetString() : null;
-                            try { TrashStore.Add(FullPath(drawer, name), drawer); }
+                            try { FileOps.SendToRecycleBin(FullPath(drawer, name)); }
                             catch (Exception ex) { Log("deleteFiles failed: " + name + " - " + ex.Message); }
                         }
                         _lastSignature = ComputeSignature();
                         PushFiles();
-                        PushTrash();
-                        break;
-                    }
-                case "trashRestore":
-                    {
-                        TrashStore.Restore(msg.RootElement.GetProperty("id").GetString()!);
-                        _lastSignature = ComputeSignature();
-                        PushFiles();
-                        PushTrash();
-                        break;
-                    }
-                case "trashDelete":
-                    {
-                        TrashStore.Delete(msg.RootElement.GetProperty("id").GetString()!);
-                        PushTrash();
-                        break;
-                    }
-                case "trashEmpty":
-                    {
-                        TrashStore.Empty();
-                        _lastSignature = ComputeSignature();
-                        PushFiles();
-                        PushTrash();
                         break;
                     }
                 case "clipboardSave":
@@ -748,15 +695,8 @@ public class MainForm : Form
                         break;
                     }
                 case "setConfig":
-                    {
-                        var key = msg.RootElement.GetProperty("key").GetString()!;
-                        ConfigStore.Update(c =>
-                        {
-                            if (key == "trashAutoClearDays")
-                                c.trashAutoClearDays = msg.RootElement.GetProperty("value").GetInt32();
-                        });
-                        break;
-                    }
+                    // 设置项写入（独立回收站移除后暂无活动项；P12 扩展：工作区路径/默认排序/开机自启）
+                    break;
                 // ---------- P5: 白板便签 ----------
                 case "noteCreate":
                     {

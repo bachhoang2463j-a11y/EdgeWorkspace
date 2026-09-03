@@ -31,6 +31,7 @@ EdgeWorkspace/
     ├── NoteWindow.cs         # 独立便签窗口（每便签一个实例，WebView2 共享环境）
     ├── NoteStore.cs          # notes/ 目录：txt 正文 + index.json 标题，增删改查
     ├── FileMetaStore.cs      # meta.json 文件元数据仓（置顶/打开计数，v2 柱2）
+    ├── ConfigStore.cs        # config.json 应用配置（P12 扩展设置项）
     ├── FileDropTarget.cs     # 自定义 OLE 放置目标（拖入收纳关键，见 §5.5）
     ├── FileOps.cs            # 打开/定位/回收站删除/Shell 右键菜单/移入工作区
     ├── FileScanner.cs        # 目录扫描 → 条目列表
@@ -72,10 +73,10 @@ contextMenu/startDragOut`）都带 `drawer` 参数，路径 = `工作区/抽屉/
 - 排序按文件 mtime 倒序；改名会 Touch（顶到最前）；删除删文件并清标题
 - `index.json` 写入非原子（沿用裸 `Write.WriteAllText`，原子写为可选加固项）
 
-### 3.3 config.json（P9 起接通，ConfigStore）
+### 3.3 config.json（ConfigStore）
 
-exe 同目录，损坏时回退默认。当前字段：`trashAutoClearDays`（回收站自动清空天数，0=关闭，
-启动时执行）。P12 扩展：工作区路径、默认排序、开机自启。JS 侧经 `setConfig`/`config`
+exe 同目录，损坏时回退默认。独立回收站移除后暂无活动字段（设置面板保留壳，
+仅显示预告）。P12 扩展：工作区路径、默认排序、开机自启。JS 侧经 `setConfig`/`config`
 消息读写，不直接碰文件。
 
 ## 4. C# ↔ JS 桥协议
@@ -96,8 +97,7 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `drawerCreate` | `{name}` | 新建抽屉 = 工作区新建同名文件夹 |
 | `hitResult` | `{drawer}` 或 `{trash: true}` | 落点命中回执（对 C# hitTest 的应答） |
 | `moveFiles` | `{files: [{name, drawer}], drawer}` | 批量移动到目标抽屉/未分类 |
-| `deleteFiles` | `{files: [{name, drawer}]}` | 批量移入回收站 |
-| `trashRestore` / `trashDelete` / `trashEmpty` | `{id}` / `{id}` / — | 回收站恢复 / 单项彻底删除 / 清空 |
+| `deleteFiles` | `{files: [{name, drawer}]}` | 删除到**系统回收站**（选择模式「删除」/ Del 键） |
 | `clipboardSave` / `clipboardToNote` | `{drawer}` / — | Ctrl+V 收纳：文件视图粘贴到光标下抽屉分组（FileDrop 优先=资源管理器/面板复制的文件，其次截图/文本）；白板页直接建便签 |
 | `copyFiles` | `{files}` | Ctrl+C 文件写入剪贴板 FileDrop（可粘贴到资源管理器/面板，工作区内部通道） |
 | `setConfig` | `{key, value}` | 写设置项（现仅 trashAutoClearDays） |
@@ -120,7 +120,8 @@ C# → JS（`PostWebMessageAsJson`）：
 | `trash` | `{items: [{id, name, drawer, deletedAt}]}` | 启动/增删/恢复/清空后推送回收站清单 |
 | `pasteDetected` | `{x, y}` | 面板可见期 C# 键态检测到 Ctrl+V（30ms 边沿、光标在面板内才触发）；前端按视图分流，文件视图按坐标命中抽屉分组为粘贴目标 |
 | `copyDetected` | `{x, y}` | 同上，Ctrl+C：前端命中光标下的文件卡（选择模式=整组）回 `copyFiles` |
-| `config` | `{config}` | ready/refresh/setConfig 后推送设置项 |
+| `delDetected` | `{x, y}` | 同上，Del 键（VK_DELETE）：选中组优先，否则光标下的文件，回 `deleteFiles`（系统回收站） |
+| `config` | `{config}` | ready/refresh 后推送设置项 |
 
 ### 4.2 便签窗口页（note.html / note.js）
 
@@ -179,11 +180,12 @@ C# → JS（`PostWebMessageAsJson`）：
 拖出（面板 → 资源管理器）：前端 dragstart 手势检测 → C# `DoDragDrop` OLE 源，
 多文件数组（批量选择时拖整组）。
 
-**回收站**（`TrashStore`）：删除 = 移入工作区隐藏 `.ews-trash/`（存储名 `id_原名`），
-清单 `trash.json`；恢复 = 移回原抽屉（抽屉已删则回根目录，重名自动编号）；
-面板底部渲染「🗑 回收站」分组（可折叠、拖文件上去=删除、右键=清空）。
-批量删除走选择模式（头部 ☑）：点击勾选、操作条（全选/删除/移入抽屉/完成）、
-拖动整组；Ctrl+V 直接收纳剪贴板截图/文本。
+**删除 = 系统回收站**（独立回收站模块已移除）：选择模式「删除」与 **Del 键**（选中组
+优先，否则光标下的文件；键态检测同 Ctrl+C/V）经 `deleteFiles` →
+`FileOps.SendToRecycleBin`（SHFileOperation，FOF_ALLOWUNDO）；卡片右键 Shell 菜单的
+删除同样进系统回收站。批量操作走选择模式（头部 ☑）：点击勾选、操作条
+（全选/删除/移入抽屉/完成）、拖动整组；Ctrl+C/Ctrl+V 文件双向通道（剪贴板 FileDrop，
+粘贴指向光标下抽屉分组）+ 截图/文本收纳。
 
 ### 5.5 独立便签窗口（P6）
 
