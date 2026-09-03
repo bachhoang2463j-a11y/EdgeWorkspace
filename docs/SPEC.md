@@ -117,7 +117,8 @@ C# → JS（`PostWebMessageAsJson`）：
 
 - **鼠标贴边**：X ≥ 右缘-8px 且桌面暴露（`WindowFromPoint` 命中类名 ∈
   Progman/WorkerW/SHELLDLL_DefView/SysListView32/Shell_TrayWnd/RainmeterMeterWindow；
-  应用窗口盖住右缘时**有意不唤出**）；前台全屏应用不唤出 → 唤出 + 切白板 Tab
+  应用窗口盖住右缘时**有意不唤出**）；前台全屏应用不唤出 → 唤出 + 按光标上下半屏分流视图
+  （上半屏 → 全部文件，下半屏 → 白板便签）
 - **拖拽贴边**（P7 修复）：按住左键（`GetAsyncKeyState(VK_LBUTTON)`，OLE 拖拽期间为真）
   贴右缘 → **绕过桌面/全屏检查**唤出 + 切全部 Tab。面板隐藏时右缘没有窗口可命中
   DragEnter，拖拽唤出必须走这条路
@@ -155,7 +156,9 @@ C# → JS（`PostWebMessageAsJson`）：
 ### 5.6 Markdown 渲染管道（md.js，两页共用）
 
 `marked.use({ gfm: true, breaks: true })`（单换行→`<br>`，符合便签短行习惯）→
-`DOMPurify.sanitize(marked.parse(text))`。消毒是必须的：页面持有 openPath 等 bridge
+**渲染前转义 `<`**（伪 HTML 块如酒馆 `<Status_block>` 会被 marked 当原生 HTML 透传，
+块内换行按 HTML 语义折叠丢失；转义后走段落路径保住换行，marked 实测 T3/T4 验证）→
+`DOMPurify.sanitize(marked.parse(src))`。消毒是必须的：页面持有 openPath 等 bridge
 权限，粘贴进便签的恶意 HTML 不消毒会在 app.local 上下文执行。卡片与窗口共用 `.note-md`
 排版（便签黄主题）。**富文本路线已定案弃用**（Vditor 525 文件 + WYSIWYG 稳定性教训，
 参照花笺 floral-notepaper 的"纯文本编辑 + 只读渲染"模型）。
@@ -194,3 +197,60 @@ dotnet run -c Release
 - `NoteStore` 写入非原子；config.json 未接入（工作区路径硬编码）
 - 桌面偶发唤不出（疑似壁纸引擎类全屏覆盖层拦截 `IsDesktopAt` 白名单）——待复现
 - `dirtyNotes`（app.js）为 P5 遗留死代码，待清理
+
+## 9. v2 路线图：19 项已确认功能的架构决策（P8–P13）
+
+> 需求确认（2026-09）：PM 提案全选——收纳移动 4（抽屉间拖拽、去重检测、剪贴板收纳、
+> 批量多选）+ 查找排序 4（名称过滤、置顶、多种排序、常用优先）+ 预览联动 4（txt/md 便签
+> 窗口打开、图片灯箱、视频悬停预览、文件进便签）+ 生命周期 3（过期提醒、设置面板、回收站
+> 恢复），另加开机自启、性能与动效（架构预留、最后统一优化）。上下半屏贴边分流与 MD 换行
+> 修复已随本节先行实施（§5.2 / §5.6）。
+
+### 9.1 四根架构柱（后续功能全部"便宜"的前提）
+
+**柱 1 · 抽屉 = 根目录子文件夹（零配置数据模型）**
+不设 drawers.json：工作区根目录每个子文件夹天然即一个抽屉，根目录散文件 = 未分类；
+资源管理器里手动建/删/改名文件夹，面板经 watcher 自动跟进。扫描两级：根文件 +
+每个子文件夹的直属文件与子文件夹卡片（更深不递归）。抽屉间移动 = `File.Move`，
+与外部资源管理器双向同构。现存的「The Sims 4 模组」等文件夹将自动成为抽屉。
+
+**柱 2 · 文件元数据仓 `meta.json`（exe 同目录）**
+`{ "工作区相对路径": { pinned, openCount, lastOpened } }`——置顶聚合、常用优先、
+未来的标签/备注都只是往 map 加字段。打开文件时 C# 计数；推送时合并进 files 消息
+（items 带 pinned/openCount），前端零额外请求。落盘带防抖。
+
+**柱 3 · 单向推送 + 前端派生视图（纯数据流）**
+C# 只推**带 drawer 字段的扁平列表**；分组、过滤、排序、过期标记、置顶优先全部由前端
+从 `allItems` 派生计算。新增消息仅动作类：`moveFile / setPinned / clipboardSave /
+deleteFiles / restoreTrash / setConfig / openTextFile`。设置接通闲置的 config.json：
+工作区路径、默认排序、过期天数、开机自启（HKCU Run 键）。
+
+**柱 4 · 拖放统一 OLE 单管线（一条管线三种语义）**
+面板内拖文件卡仍走现有 `startDragOut`（C# `DoDragDrop`）——**落回自己面板上**时
+FileDropTarget 会收到（带屏幕坐标）：命中抽屉横栏 = 抽屉间移动；落未分类区 = 移出抽屉；
+拖出面板 = 交给资源管理器。无需 HTML5 内部拖放。去重检测同点做：同名同大小 →
+C# 原生对话框「替换 / 保留两者(自动编号) / 跳过」，不绕 JS。
+
+**其余地基**：`NoteWindow` 泛化（目标从便签 id 泛化为 `note:noteN | file:相对路径`，
+txt/md 文件直接用便签窗口打开+编辑+保存，保存后 PushFiles 刷新）；回收站 = 工作区隐藏
+`.ews-trash/` 文件夹 + trash.json 清单（恢复 = 移回，比 Shell 回收站 COM 可控）；
+性能预留——渲染事件委托（现每卡 5 监听器）、`content-visibility: auto` 屏外分区、
+推送重渲染保持滚动位置；动画只走 transform/opacity 合成器路径。
+
+### 9.2 分期（每期一个提交，可随时插入调整）
+
+| 期 | 内容 |
+|---|---|
+| P8 地基 | 两级扫描 + 抽屉分组渲染（section-group 折叠/localStorage 记忆）+ meta.json 骨架 + 上下半屏分流 ✅ + MD 换行修复 ✅ |
+| P9 收纳 | OLE 自落命中抽屉间移动 · 去重对话框 · 批量选择模式（头部「选择」开关 + 操作条：移入抽屉/删除/全选）· Ctrl+V 剪贴板收纳（C# Clipboard 读图/文本落盘）· 回收站与恢复 |
+| P10 查找 | 名称过滤框（跨抽屉）· 排序切换（名称/时间/大小/类型/常用，置顶恒优先，选择落 config）· 置顶 ⭐ 交互 |
+| P11 预览 | txt/md 便签窗口打开（NoteWindow 泛化）· 图片灯箱（面板内遮罩大图）· 视频悬停静音播放 · 文件进便签（V1 简化：右键「复制 Markdown 链接」；跨 WebView 直拖受 Chromium 无文件路径限制，后续评估） |
+| P12 生命周期 | 过期灰显 + 计数 + 一键归档 · 设置面板（工作区路径 FolderBrowserDialog / 默认排序 / 过期天数 / 开机自启） |
+| P13 性能动效 | 事件委托、滚动保持、content-visibility、渲染节流、动画统一走合成器 |
+
+### 9.3 风险登记
+
+- 屏幕坐标 → CSS 坐标换算依赖 DPI 缩放与滚动位置，P9 实测校准（本机 200% 缩放）
+- meta.json 与 watcher 推送的相互作用（meta 写入不得触发文件扫描风暴——meta 在 exe 目录，天然隔离）
+- 批量选择模式的交互与"点开文件"的手势冲突——用显式「选择」模式开关隔离
+- 大目录（数百文件）全量重渲染的性能——P13 事件委托 + content-visibility 兜底
