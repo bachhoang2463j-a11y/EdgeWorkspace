@@ -66,6 +66,10 @@ public class MainForm : Form
             _env = await CoreWebView2Environment.CreateAsync(null, dataDir); // 独立便签窗口共用（P6）
             await _web.EnsureCoreWebView2Async(_env);
             _core = _web.CoreWebView2;
+            // OLE 放置目标不沿父链上溯：Chromium 子窗口必须逐个注册我们的目标（FileDropTarget）。
+            // 导航完成后渲染器可能重建子窗口，重跑一遍。
+            ApplyFileDropTargets();
+            _core.NavigationCompleted += (_, _) => ApplyFileDropTargets();
 
             var root = Path.Combine(AppContext.BaseDirectory, "wwwroot");
             _core.SetVirtualHostNameToFolderMapping(
@@ -87,12 +91,8 @@ public class MainForm : Form
             _edgeWatch.Start();
             Native.RegisterAppHotKey(Handle);
 
-            // P4: 拖入收纳（窗体级 OLE）
-            AllowDrop = true;
-            DragEnter += OnDragEnter;
-            DragOver += OnDragOver;
-            DragDrop += OnDragDrop;
-            DragLeave += OnDragLeave;
+            // P4/P7: 拖入收纳走自定义 OLE 放置目标（见 ApplyFileDropTargets），
+            // 不用窗体 AllowDrop——OLE 不沿父链上溯，WebView2 盖住窗体后它收不到事件。
         };
 
         // 移开判定（600ms 宽限）
@@ -154,6 +154,7 @@ public class MainForm : Form
         // 必须由这里唤出。此时右缘下方是拖拽源窗口，绕过桌面/全屏检查。
         if (Native.IsMouseLeftDown())
         {
+            Log("drag summon: cursor=" + x + "," + y + " btn=1");
             BeginExpand();
             SetFrontTab("all");   // 拖放视图：全部
             return;
@@ -162,6 +163,7 @@ public class MainForm : Form
         if (Native.IsForegroundFullScreen(Handle)) return;   // 全屏应用不打扰
         if (!Native.IsDesktopAt(x, y) && !IsSelfAt(x, y)) return; // 窗口盖住右缘时不唤出（有意设计）
 
+        Log("edge summon: cursor=" + x + "," + y);
         BeginExpand();
         // 贴边唤出（鼠标）默认展示白板；拖放唤出时上面已切到全部
         SetFrontTab("whiteboard");
@@ -273,38 +275,41 @@ public class MainForm : Form
         }
     }
 
-    // ---------- P4: 拖放 ----------
+    // ---------- P4/P7: 拖入收纳（自定义 OLE 放置目标，逐窗口注册） ----------
 
-    /// <summary>拖文件入面板 = 移入工作区；拖放期间挂起收起。</summary>
-    private void OnDragEnter(object? sender, DragEventArgs e)
+    private FileDropTarget? _fileDrop;
+
+    /// <summary>把文件放置目标注册到窗体与 WebView2 全部子窗口（导航后子窗口重建需重跑）。</summary>
+    private void ApplyFileDropTargets()
     {
-        _dragOver = e.Data!.GetDataPresent(DataFormats.FileDrop);
-        // 拖放悬停：唤出（若隐藏）并始终切到【全部】准备接收
-        if (_dragOver)
-        {
-            if (!Visible) BeginExpand();
-            SetFrontTab("all");
-        }
-        e.Effect = _dragOver ? DragDropEffects.Move : DragDropEffects.None;
-    }
-
-    private void OnDragOver(object? sender, DragEventArgs e) =>
-        e.Effect = e.Data!.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
-
-    /// <summary>拖离面板（取消/拖到别处）：解除挂起，让看门狗恢复自动收起。</summary>
-    private void OnDragLeave(object? sender, EventArgs e) => _dragOver = false;
-
-    private void OnDragDrop(object? sender, DragEventArgs e)
-    {
-        _dragOver = false;
-        if (e.Data!.GetData(DataFormats.FileDrop) is not string[] files) return;
-        foreach (var f in files)
-        {
-            try { FileOps.MoveInto(f, WorkspacePath); }
-            catch (Exception ex) { Log("MoveInto failed: " + f + " - " + ex.Message); }
-        }
-        _lastSignature = ComputeSignature(); // 立即失效签名，推送刷新
-        PushFiles();
+        _fileDrop ??= new FileDropTarget(
+            files =>
+            {
+                _dragOver = files;   // 拖放期间挂起收起
+                Log("DragEnter: files=" + files);
+                if (files)
+                {
+                    if (!Visible) BeginExpand();
+                    SetFrontTab("all");   // 拖放视图：全部
+                }
+            },
+            () => _dragOver = false,
+            files =>
+            {
+                _dragOver = false;
+                Log("DragDrop: " + files.Length + " 个文件");
+                foreach (var f in files)
+                {
+                    try { FileOps.MoveInto(f, WorkspacePath); }
+                    catch (Exception ex) { Log("MoveInto failed: " + f + " - " + ex.Message); }
+                }
+                _lastSignature = ComputeSignature(); // 立即失效签名，推送刷新
+                PushFiles();
+            });
+        Native.SetDropTarget(Handle, _fileDrop);
+        Native.SetDropTarget(_web.Handle, _fileDrop);
+        foreach (var h in Native.CollectDescendants(_web.Handle))
+            Native.SetDropTarget(h, _fileDrop);
     }
 
     // ---------- P1: 文件列表 ----------

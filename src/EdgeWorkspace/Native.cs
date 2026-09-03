@@ -39,6 +39,67 @@ internal static class Native
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr h, int id);
 
+    // ---------- OLE 拖放（P7：拖入收纳） ----------
+
+    [ComImport, Guid("00000122-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IDropTarget
+    {
+        [PreserveSig] int DragEnter([MarshalAs(UnmanagedType.Interface)] System.Runtime.InteropServices.ComTypes.IDataObject? pDataObj, uint grfKeyState, POINTL pt, ref uint pdwEffect);
+        [PreserveSig] int DragOver(uint grfKeyState, POINTL pt, ref uint pdwEffect);
+        [PreserveSig] int DragLeave();
+        [PreserveSig] int Drop([MarshalAs(UnmanagedType.Interface)] System.Runtime.InteropServices.ComTypes.IDataObject? pDataObj, uint grfKeyState, POINTL pt, ref uint pdwEffect);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINTL { public int X, Y; }
+
+    [DllImport("ole32.dll")]
+    private static extern int RegisterDragDrop(IntPtr h, IDropTarget target);
+
+    [DllImport("ole32.dll")]
+    private static extern int RevokeDragDrop(IntPtr h);
+
+    [DllImport("ole32.dll")]
+    public static extern void ReleaseStgMedium(ref System.Runtime.InteropServices.ComTypes.STGMEDIUM medium);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "DragQueryFileW")]
+    private static extern uint DragQueryFile(IntPtr hdrop, uint iFile, System.Text.StringBuilder? name, uint max);
+
+    private delegate bool EnumChildProc(IntPtr h, IntPtr l);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(IntPtr h, EnumChildProc cb, IntPtr l);
+
+    /// <summary>注册/替换 hwnd 上的 OLE 放置目标（同窗口重复注册会失败，先撤销再注册）。</summary>
+    public static void SetDropTarget(IntPtr hwnd, IDropTarget target)
+    {
+        RevokeDragDrop(hwnd);
+        RegisterDragDrop(hwnd, target);
+    }
+
+    /// <summary>收集 hwnd 的全部子孙窗口。</summary>
+    public static List<IntPtr> CollectDescendants(IntPtr hwnd)
+    {
+        var list = new List<IntPtr>();
+        EnumChildWindows(hwnd, (child, _) => { list.Add(child); return true; }, IntPtr.Zero);
+        return list;
+    }
+
+    /// <summary>从 CF_HDROP 句柄读出全部文件路径。</summary>
+    public static string[] DragQueryFiles(IntPtr hdrop)
+    {
+        var count = (int)DragQueryFile(hdrop, 0xFFFFFFFF, null, 0);
+        var files = new string[count];
+        for (var i = 0; i < count; i++)
+        {
+            var len = (int)DragQueryFile(hdrop, (uint)i, null, 0);
+            var sb = new System.Text.StringBuilder(len + 1);
+            DragQueryFile(hdrop, (uint)i, sb, (uint)sb.Capacity);
+            files[i] = sb.ToString();
+        }
+        return files;
+    }
+
     public const uint MOD_CONTROL = 0x2, MOD_SHIFT = 0x4;
     public const uint VK_Z = 0x5A;
     private const int HOTKEY_ID = 0xBEEF;
