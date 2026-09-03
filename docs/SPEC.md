@@ -30,6 +30,7 @@ EdgeWorkspace/
     ├── MainForm.cs           # 主面板：贴边/热键/收起/拖放/消息桥/便签窗口管理
     ├── NoteWindow.cs         # 独立便签窗口（每便签一个实例，WebView2 共享环境）
     ├── NoteStore.cs          # notes/ 目录：txt 正文 + index.json 标题，增删改查
+    ├── FileMetaStore.cs      # meta.json 文件元数据仓（置顶/打开计数，v2 柱2）
     ├── FileDropTarget.cs     # 自定义 OLE 放置目标（拖入收纳关键，见 §5.5）
     ├── FileOps.cs            # 打开/定位/回收站删除/Shell 右键菜单/移入工作区
     ├── FileScanner.cs        # 目录扫描 → 条目列表
@@ -49,16 +50,25 @@ EdgeWorkspace/
 ### 3.1 文件条目（C# → JS）
 
 ```json
-{ "name": "策划案.docx", "isFolder": false, "ext": "docx",
-  "kind": "doc", "size": 25090, "mtime": "2026-09-03 10:27" }
+{ "name": "策划案.docx", "isFolder": false, "ext": "docx", "kind": "doc",
+  "drawer": null,               // null=根目录散文件（未分类）；"名"=在名为「名」的抽屉内
+  "pinned": false, "openCount": 3,   // meta.json 合并（v2 柱2 骨架，P10 起有 UI）
+  "size": 25090, "mtime": "2026-09-03 10:27" }
 ```
+
+**两级扫描（v2 柱1，P8）**：工作区根目录的每个子文件夹 = 一个抽屉（`drawers` 随 files
+消息推送，按名称序）；抽屉内直属文件归该抽屉组，抽屉内的子文件夹以文件夹卡片呈现，
+更深不递归；根目录散文件 = 未分类组。所有指向文件的消息（`openPath/revealItem/
+contextMenu/startDragOut`）都带 `drawer` 参数，路径 = `工作区/抽屉/文件名`。
+缩略图 URL 为 `files.local/<抽屉>/<文件名>`（逐段 encodeURIComponent）。
 
 `kind` 判定口径见 §6。
 
 ### 3.2 便签
 
 - **无限量**：`notes/noteN.txt`，一个文件一张便签，内容为 **Markdown 源码**（UTF-8）
-- 标题存 `notes/index.json`（`{ "note1": "标题" }`，损坏时静默回退空标题）
+- 标题存 `notes/index.json`：`{ "note1": { "title": "标题" } }`（P8 起对象结构；旧字符串
+  格式按"仅标题"兼容读取；P13 贴纸将扩展 `tile: { on, x, y, w, h }` 字段）
 - 排序按文件 mtime 倒序；改名会 Touch（顶到最前）；删除删文件并清标题
 - `index.json` 写入非原子（沿用裸 `Write.WriteAllText`，原子写为可选加固项）
 
@@ -77,10 +87,11 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | type | payload | 语义 |
 |---|---|---|
 | `ready` / `refresh` | — | 就绪请求首推 / 手动刷新 |
-| `openPath` / `revealItem` | `{name}` | 系统打开 / 资源管理器定位 |
+| `openPath` / `revealItem` | `{name, drawer}` | 系统打开 / 资源管理器定位（drawer=null 为根目录；openPath 顺带累计 openCount） |
 | `openFolder` | — | 资源管理器打开工作区 |
-| `contextMenu` | `{name}` | Shell 原生右键菜单（P4） |
-| `startDragOut` | `{name}` | C# 发起 OLE 拖出（DoDragDrop） |
+| `contextMenu` | `{name, drawer}` | Shell 原生右键菜单（抽屉横栏右键 = 该文件夹的菜单） |
+| `startDragOut` | `{name, drawer}` | C# 发起 OLE 拖出（DoDragDrop） |
+| `drawerCreate` | `{name}` | 新建抽屉 = 工作区新建同名文件夹 |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
 | `noteRename` | `{id, title}` | 改名（写 index.json + Touch + 重推） |
 | `noteOpen` | `{id}` | 打开/聚焦该便签的独立窗口 |
@@ -91,7 +102,7 @@ C# → JS（`PostWebMessageAsJson`）：
 
 | type | payload | 时机 |
 |---|---|---|
-| `files` | `{items, total}` | 启动 / watcher / 拖入后 |
+| `files` | `{items, total, drawers}` | 启动 / watcher / 拖入后（drawers=抽屉名清单，按名称序） |
 | `notes` | `{notes: [{id, title, content, mtime}]}` | 启动 / 增删改名后 |
 | `setTab` | `{tab}` | 唤出时切换视图（鼠标→whiteboard，拖放→all） |
 
@@ -246,9 +257,40 @@ txt/md 文件直接用便签窗口打开+编辑+保存，保存后 PushFiles 刷
 | P10 查找 | 名称过滤框（跨抽屉）· 排序切换（名称/时间/大小/类型/常用，置顶恒优先，选择落 config）· 置顶 ⭐ 交互 |
 | P11 预览 | txt/md 便签窗口打开（NoteWindow 泛化）· 图片灯箱（面板内遮罩大图）· 视频悬停静音播放 · 文件进便签（V1 简化：右键「复制 Markdown 链接」；跨 WebView 直拖受 Chromium 无文件路径限制，后续评估） |
 | P12 生命周期 | 过期灰显 + 计数 + 一键归档 · 设置面板（工作区路径 FolderBrowserDialog / 默认排序 / 过期天数 / 开机自启） |
-| P13 性能动效 | 事件委托、滚动保持、content-visibility、渲染节流、动画统一走合成器 |
+| P13 皮肤与桌面贴纸 | 毛玻璃皮肤首发（主题机制保留扩展性，见 §9.4）· 桌面置顶小便签（纯文本渲染，见 §9.4） |
+| P14 性能动效 | 事件委托、滚动保持、content-visibility、渲染节流、动画统一走合成器 |
 
-### 9.3 风险登记
+### 9.3 皮肤与桌面贴纸的架构决策（P13，已确认）
+
+**皮肤**（确认：首发仅毛玻璃，机制留扩展）：
+- 主题 = 跨 C#/JS 的**描述符** `{ css类名, backdrop(none/acrylic/mica), 窗体透明 }`，
+  C# 侧集中 ThemeApplier 对全部窗口（面板/便签窗/贴纸）统一应用，config.json 存主题名
+- 毛玻璃平台分支：Win11 `DWMWA_SYSTEMBACKDROP_TYPE`（官方）；Win10
+  `SetWindowCompositionAttribute`+`ACCENT_ENABLE_ACRYLICBLURBEHIND`（未公开 API，
+  Rainmeter 同款；失败降级纯半透明）。WebView2 侧 `DefaultBackgroundColor=Transparent`
+  + CSS 半透明背景
+- Win10 亚克力拖动迟滞：滑入/滑出动画期间临时关模糊，动画结束再开（与 P14 联动）
+- 跨窗口换肤同步：app.local 同源 localStorage 的 `storage` 事件零成本广播
+  （需实测 WebView2 跨窗口行为，兜底 C# 广播消息）
+- **CSS 变量化纪律从 P8 起执行**：新样式一律用 `--*` 变量，禁止硬编码颜色
+
+**桌面贴纸**（确认：默认纯文本渲染）：
+- TileWindow：无边框、置顶、不进任务栏的小窗口，每便签一个；纯文本渲染
+  （页面不加载 marked/DOMPurify，渲染进程轻量）；双击打开 NoteWindow 大编辑窗
+- 位置/尺寸存 `notes/index.json` 的 `tile` 字段（schema 已在 P8 预留）
+- 内容实时同步依赖 **C# → 全窗口广播**（`NotifyNoteChanged`），与主题变更广播同一基础设施
+- 窗口家族（面板/NoteWindow/TileWindow）共享 WebView2 底座（环境/映射/消息/主题）
+
+### 9.4 提前动作清单（不在 P13 才做）
+
+| 动作 | 归属 | 说明 |
+|---|---|---|
+| CSS 颜色全面变量化 + `data-theme` 骨架 | **P8 起持续** | 每期新增样式一律走变量 |
+| `notes/index.json` 升级对象 schema（兼容旧字符串） | **P8** | 贴纸 tile 字段的落点 |
+| C# → 全窗口广播机制（主题/内容变更共用） | P11 | NoteWindow 泛化时建 |
+| WebView2 窗口公共底座（env/映射/消息/主题） | P11 | TileWindow 直接继承 |
+
+### 9.5 风险登记
 
 - 屏幕坐标 → CSS 坐标换算依赖 DPI 缩放与滚动位置，P9 实测校准（本机 200% 缩放）
 - meta.json 与 watcher 推送的相互作用（meta 写入不得触发文件扫描风暴——meta 在 exe 目录，天然隔离）
