@@ -422,7 +422,7 @@ public class MainForm : Form
     /// <summary>应用主题：webview 透底 + Win10 亚克力 + 广播前端/便签窗口。</summary>
     private void ApplyTheme(string theme)
     {
-        _theme = theme == "acrylic" ? "acrylic" : "white";
+        _theme = theme is "white" or "acrylic" or "eye" ? theme : "white";
         var glass = _theme == "acrylic";
         _web.DefaultBackgroundColor = glass ? Color.Transparent : Color.White;
         UpdateAcrylic();

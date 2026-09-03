@@ -16,20 +16,38 @@
   --tab-active-bg: #ffffff;
   --bg-panel: #fafbfc;
   --bg-hover: #f1f5f9;
-  /* 便签黄主题（整组替换即可换肤） */
-  --sticky-bg: #fefce8;
-  --sticky-bg-soft: #fffbeb;
-  --sticky-border: #fef08a;
-  --sticky-hover: #fef9c3;
-  --sticky-title: #854d0e;
-  --sticky-text: #713f12;
-  --sticky-muted: #c0a879;
-  --sticky-accent-text: #b45309;
-  --sticky-btn-bg: #ffffff;
-  --sticky-accent: #fde68a;
-  --sticky-btn-primary: #f59e0b;
-  --sticky-btn-primary-hover: #d97706;
-  --sticky-quote: #a16207;
+  /* 便签羊皮纸主题（整组替换即可换肤；低饱和暖调） */
+  --sticky-bg: #f5efdc;
+  --sticky-bg-soft: #faf5e9;
+  --sticky-border: #e3d8bd;
+  --sticky-hover: #ece4c9;
+  --sticky-title: #6d5a3c;
+  --sticky-text: #50412b;
+  --sticky-muted: #b0a385;
+  --sticky-accent-text: #8a6f45;
+  --sticky-btn-bg: #fdfaf1;
+  --sticky-accent: #ded2b0;
+  --sticky-btn-primary: #b08d4f;
+  --sticky-btn-primary-hover: #96753e;
+  --sticky-quote: #7a6848;
+}
+
+/* 🌿 P13: 护眼模式（豆沙绿低眩光；便签沿用羊皮纸） */
+html[data-theme="eye"] {
+  --primary: #2f8f5b;
+  --primary-light: rgba(47, 143, 91, 0.14);
+  --text-main: #2c3a31;
+  --text-sub: #4c6154;
+  --text-muted: #7c8f83;
+  --section-title: #44614f;
+  --border-color: #b7d5bd;
+  --border-subtle: #cfe5d4;
+  --bg-card: #dcefe3;
+  --bg-drawer: #cfe8d4;
+  --overlay-bg: #dcefe3;
+  --tab-active-bg: #e3f3e7;
+  --bg-panel: #c3dfc9;
+  --bg-hover: #cde3d2;
 }
 
 /* 🧊 P13: 毛玻璃（参数取自视觉方案 Demo 风格 A）。
@@ -44,12 +62,12 @@ html[data-theme="acrylic"] {
   --border-subtle: rgba(255, 255, 255, 0.30);
   --tab-active-bg: rgba(255, 255, 255, 0.90);
   --overlay-bg: rgba(255, 255, 255, 0.97);   /* 覆盖层必须接近不透明，透出底层内容不可读 */
-  --sticky-bg: rgba(254, 252, 232, 0.88);
-  --sticky-bg-soft: rgba(255, 251, 235, 0.88);
-  --sticky-hover: rgba(254, 249, 195, 0.82);
-  --sticky-btn-bg: rgba(255, 255, 255, 0.75);
-  --sticky-accent: rgba(253, 226, 71, 0.60);
-  --sticky-border: rgba(253, 224, 71, 0.55);
+  --sticky-bg: rgba(245, 239, 220, 0.88);
+  --sticky-bg-soft: rgba(250, 245, 233, 0.88);
+  --sticky-hover: rgba(236, 228, 201, 0.82);
+  --sticky-btn-bg: rgba(253, 250, 241, 0.75);
+  --sticky-accent: rgba(222, 210, 176, 0.65);
+  --sticky-border: rgba(227, 216, 189, 0.65);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -246,7 +264,7 @@ body {
 .whiteboard-box {
   background: var(--sticky-bg); border: 1px solid var(--sticky-border); border-radius: 12px;
   padding: 10px; display: flex; flex-direction: column; gap: 6px;
-  box-shadow: 0 2px 8px rgba(234,179,8,.08); height: 230px;
+  box-shadow: 0 2px 8px rgba(160,140,90,.14); height: 230px;
   cursor: pointer; min-width: 0; overflow: hidden;
 }
 .whiteboard-header {
@@ -254,14 +272,14 @@ body {
   font-size: 12px; font-weight: 700; color: var(--sticky-title);
 }
 .whiteboard-del { border: none; background: transparent; color: var(--sticky-accent-text); cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 6px; }
-.whiteboard-del:hover { background: rgba(180,83,9,.12); }
+.whiteboard-del:hover { background: rgba(138,111,69,.16); }
 
 /* 便签标题（点击改名） */
 .whiteboard-title {
   max-width: 70%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: pointer; border-radius: 4px; padding: 1px 4px; margin-left: -4px;
 }
-.whiteboard-title:hover { background: rgba(133,77,14,.09); }
+.whiteboard-title:hover { background: rgba(109,90,60,.12); }
 .whiteboard-title-input {
   font-size: 12px; font-weight: 700; color: var(--sticky-title); font-family: inherit;
   border: 1px solid var(--sticky-accent); border-radius: 4px; padding: 1px 4px; outline: none;
@@ -289,11 +307,11 @@ body {
 .note-md input[type="checkbox"] { margin-right: 5px; vertical-align: -2px; }
 .note-md code {
   font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: .92em;
-  background: rgba(133,77,14,.10); border-radius: 4px; padding: 1px 5px;
+  background: rgba(109,90,60,.13); border-radius: 4px; padding: 1px 5px;
 }
 .note-md pre {
   margin: 6px 0; padding: 8px 10px; border-radius: 8px;
-  background: rgba(120,53,15,.07); overflow: auto;
+  background: rgba(109,90,60,.08); overflow: auto;
 }
 .note-md pre code { background: none; padding: 0; }
 .note-md blockquote {
@@ -302,10 +320,10 @@ body {
 }
 .note-md table { border-collapse: collapse; margin: 6px 0; }
 .note-md th, .note-md td { border: 1px solid var(--sticky-accent); padding: 3px 8px; }
-.note-md th { background: rgba(254,240,138,.35); }
+.note-md th { background: rgba(222,210,176,.5); }
 .note-md a { color: var(--sticky-accent-text); }
 .note-md img { max-width: 100%; border-radius: 6px; }
-.note-md hr { border: none; border-top: 1px dashed #eab308; margin: 8px 0; }
+.note-md hr { border: none; border-top: 1px dashed #cfc2a0; margin: 8px 0; }
 .note-md > :first-child { margin-top: 0; }
 .note-md > :last-child { margin-bottom: 0; }
 
