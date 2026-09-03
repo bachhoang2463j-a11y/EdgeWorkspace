@@ -422,8 +422,8 @@ public class MainForm : Form
     /// <summary>应用主题：webview 透底 + Win10 亚克力 + 广播前端/便签窗口。</summary>
     private void ApplyTheme(string theme)
     {
-        _theme = theme is "white" or "acrylic" or "eye" ? theme : "white";
-        var glass = _theme == "acrylic";
+        _theme = theme is "white" or "acrylic" or "eye" or "eye-glass" ? theme : "white";
+        var glass = _theme is "acrylic" or "eye-glass";
         _web.DefaultBackgroundColor = glass ? Color.Transparent : Color.White;
         UpdateAcrylic();
         PostToJs(new { type = "theme", theme = _theme });
@@ -435,7 +435,7 @@ public class MainForm : Form
     ///（Win10 亚克力在窗口移动时会冻结，动画期间先关，落定再开）。</summary>
     private void UpdateAcrylic()
     {
-        var on = _theme == "acrylic" && Visible && !_anim.Enabled;
+        var on = (_theme is "acrylic" or "eye-glass") && Visible && !_anim.Enabled;
         if (on == _acrylicOn) return;
         _acrylicOn = on;
         Native.SetAcrylic(Handle, on);

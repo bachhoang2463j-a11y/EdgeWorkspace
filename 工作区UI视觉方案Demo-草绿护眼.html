@@ -1,94 +1,90 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="acrylic">
+<html lang="zh-CN" data-theme="nature-glass">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EdgeWorkspace 现代无感视觉方案 Demo</title>
+    <title>EdgeWorkspace 优雅植萃·草绿护眼视觉 Demo (参考花笺)</title>
     <style>
-        /* ==================== 1. 设计令牌：去框化·无感分隔·纯白/毛玻璃双风格 ==================== */
+        /* ==================== 1. 调色盘重构：优雅植萃·柔和无感·低饱和护眼 ==================== */
         :root {
             --font-main: "Segoe UI Variable Text", "Segoe UI Variable Display", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", sans-serif;
             --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
-            --primary: #2563eb;
-            --primary-light: rgba(37, 99, 235, 0.08);
-            --primary-glow: rgba(37, 99, 235, 0.25);
+
+            /* 核心品牌草木绿（温润而不刺眼） */
+            --primary: #16a34a;
+            --primary-hover: #15803d;
+            --primary-light: rgba(22, 163, 74, 0.08);
+            --primary-glow: rgba(22, 163, 74, 0.2);
         }
 
-        /* 🧊 风格 A：毛玻璃风格 (Frosted Glassmorphism - 亚克力透光·无框悬浮) */
-        html[data-theme="acrylic"] {
-            --bg-drawer: rgba(255, 255, 255, 0.68);
-            --blur-drawer: blur(36px) saturate(190%);
-            --border-drawer: 1px solid rgba(255, 255, 255, 0.75);
-            --shadow-drawer: -16px 0 48px rgba(0, 0, 0, 0.16), inset 1px 0 0 rgba(255, 255, 255, 0.9);
+        /* 🍃 风格 A：晨露薄竹 (Nature Acrylic - 通透柔光·无感分隔) */
+        html[data-theme="nature-glass"] {
+            /* 告别发黄发浑，采用透光微绿奶白底色 */
+            --bg-drawer: rgba(248, 252, 249, 0.78);
+            --blur-drawer: blur(36px) saturate(140%);
+            --border-drawer: 1px solid rgba(255, 255, 255, 0.85);
+            --shadow-drawer: -16px 0 48px rgba(15, 30, 18, 0.14), inset 1px 0 0 rgba(255, 255, 255, 0.95);
 
-            --bg-header: rgba(255, 255, 255, 0.35);
-            --bg-tabbar: rgba(255, 255, 255, 0.25);
+            --bg-header: rgba(255, 255, 255, 0.4);
+            --bg-tabbar: rgba(255, 255, 255, 0.3);
             --bg-footer: rgba(255, 255, 255, 0.45);
-
-            /* 卡片无框化：默认完全透明，仅悬停轻微透光凸显 */
-            --bg-card: transparent;
-            --bg-card-hover: rgba(255, 255, 255, 0.65);
-            --border-card: transparent;
-            --border-card-hover: rgba(255, 255, 255, 0.9);
-            --shadow-card: none;
-            --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-
-            /* 无感光感分隔线 (参考 iOS/HyperOS 渐变发光线) */
-            --divider-gradient: linear-gradient(90deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.25) 70%, transparent 100%);
-            --border-bottom-subtle: 1px solid rgba(255, 255, 255, 0.35);
-
-            --text-main: #0f172a;
-            --text-sub: #334155;
-            --text-muted: #64748b;
-
-            --tab-active-bg: rgba(255, 255, 255, 0.9);
-            --tab-active-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-            --input-bg: rgba(255, 255, 255, 0.65);
-            --input-border: rgba(255, 255, 255, 0.8);
-
-            --sticky-bg: rgba(254, 252, 232, 0.88);
-            --sticky-border: rgba(253, 224, 71, 0.6);
-            --sticky-title: #854d0e;
-            --sticky-text: #713f12;
-            --preview-bg: rgba(255, 255, 255, 0.88);
-        }
-
-        /* ⚪ 风格 B：纯白质感 (Solid White Texture - 极简高质感·无框通透) */
-        html[data-theme="white"] {
-            --bg-drawer: #ffffff;
-            --blur-drawer: none;
-            --border-drawer: 1px solid #e2e8f0;
-            --shadow-drawer: -10px 0 32px rgba(0, 0, 0, 0.08);
-
-            --bg-header: #ffffff;
-            --bg-tabbar: #fafbfc;
-            --bg-footer: #fafbfc;
 
             /* 卡片无框化 */
             --bg-card: transparent;
-            --bg-card-hover: #f1f5f9;
+            --bg-card-hover: rgba(255, 255, 255, 0.7);
             --border-card: transparent;
-            --border-card-hover: #e2e8f0;
+            --border-card-hover: rgba(255, 255, 255, 0.95);
             --shadow-card: none;
-            --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --shadow-card-hover: 0 6px 18px rgba(15, 30, 18, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 
-            /* 优雅微灰无感渐变线 */
-            --divider-gradient: linear-gradient(90deg, #cbd5e1 0%, #e2e8f0 60%, transparent 100%);
-            --border-bottom-subtle: 1px solid #f1f5f9;
+            /* 重点修复：去掉了刺眼的荧光绿线，采用优雅通透的纯白微光渐变分隔线 (参考图二无感线) */
+            --divider-gradient: linear-gradient(90deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.2) 65%, transparent 100%);
+            --border-bottom-subtle: 1px solid rgba(0, 0, 0, 0.05);
 
-            --text-main: #0f172a;
-            --text-sub: #475569;
-            --text-muted: #94a3b8;
+            --text-main: #0f2412;
+            --text-sub: #415a45;
+            --text-muted: #728c76;
+
+            --tab-active-bg: rgba(255, 255, 255, 0.92);
+            --tab-active-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            --input-bg: rgba(255, 255, 255, 0.75);
+            --input-border: rgba(0, 0, 0, 0.08);
+
+            --preview-bg: rgba(248, 252, 249, 0.9);
+        }
+
+        /* 🍵 风格 B：润目温茶 (Nature Solid - 柔光暖白实色纸质) */
+        html[data-theme="nature-solid"] {
+            --bg-drawer: #f7f9f7;
+            --blur-drawer: none;
+            --border-drawer: 1px solid #e3e8e3;
+            --shadow-drawer: -10px 0 32px rgba(0, 0, 0, 0.06);
+
+            --bg-header: #ffffff;
+            --bg-tabbar: #f2f5f2;
+            --bg-footer: #f2f5f2;
+
+            /* 卡片无框化 */
+            --bg-card: transparent;
+            --bg-card-hover: #eaf0ea;
+            --border-card: transparent;
+            --border-card-hover: #dbe4dc;
+            --shadow-card: none;
+            --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.04);
+
+            /* 柔和中性灰绿渐变线 */
+            --divider-gradient: linear-gradient(90deg, rgba(0, 0, 0, 0.09) 0%, rgba(0, 0, 0, 0.02) 65%, transparent 100%);
+            --border-bottom-subtle: 1px solid #e8ede8;
+
+            --text-main: #142817;
+            --text-sub: #435b46;
+            --text-muted: #788e7b;
 
             --tab-active-bg: #ffffff;
-            --tab-active-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+            --tab-active-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
             --input-bg: #ffffff;
-            --input-border: #cbd5e1;
+            --input-border: #cbd7cc;
 
-            --sticky-bg: #fefce8;
-            --sticky-border: #fef08a;
-            --sticky-title: #854d0e;
-            --sticky-text: #713f12;
             --preview-bg: #ffffff;
         }
 
@@ -103,34 +99,34 @@
         body {
             font-family: var(--font-main);
             height: 100vh;
-            background: #1e2430 url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=2200&q=85') center/cover no-repeat fixed;
+            background: #142817 url('https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=2200&q=85') center/cover no-repeat fixed;
             overflow: hidden;
             display: flex;
             justify-content: flex-end;
             transition: background 0.5s ease;
         }
 
-        /* ==================== 2. 左上角风格与壁纸切换控制器 ==================== */
+        /* ==================== 2. 左上角控制台 ==================== */
         .demo-control-panel {
             position: fixed;
             top: 20px;
             left: 20px;
             width: 350px;
-            background: rgba(15, 23, 42, 0.85);
+            background: rgba(15, 28, 17, 0.85);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 16px;
             padding: 16px 18px;
-            color: #f8fafc;
-            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+            color: #f0fdf4;
+            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
             z-index: 1000;
         }
 
         .control-title {
             font-size: 13.5px;
             font-weight: 700;
-            color: #60a5fa;
+            color: #86efac;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -141,7 +137,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 6px;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.35);
             padding: 3px;
             border-radius: 10px;
             margin-bottom: 12px;
@@ -150,7 +146,7 @@
         .style-switch-btn {
             border: none;
             background: transparent;
-            color: #94a3b8;
+            color: #bbf7d0;
             font-size: 12px;
             font-weight: 600;
             padding: 7px 10px;
@@ -160,13 +156,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 5px;
         }
 
         .style-switch-btn.active {
-            background: #2563eb;
+            background: linear-gradient(135deg, #16a34a, #15803d);
             color: #ffffff;
-            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+            box-shadow: 0 2px 10px rgba(22, 163, 74, 0.4);
         }
 
         .wallpaper-bar {
@@ -181,40 +177,40 @@
         .wp-btn {
             flex: 1;
             font-size: 11px;
-            padding: 4px 0;
+            padding: 5px 0;
             border-radius: 6px;
             background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #dcfce7;
             cursor: pointer;
             text-align: center;
             transition: all 0.15s ease;
         }
         .wp-btn:hover, .wp-btn.active {
-            background: rgba(56, 189, 248, 0.25);
-            border-color: #38bdf8;
+            background: rgba(74, 222, 128, 0.25);
+            border-color: #86efac;
             color: #fff;
         }
 
         .edge-tip {
-            margin-top: 10px;
+            margin-top: 12px;
             font-size: 11px;
-            color: #94a3b8;
+            color: #86efac;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
 
         .toggle-btn {
-            background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(74, 222, 128, 0.15);
+            border: 1px solid rgba(74, 222, 128, 0.3);
             color: #fff;
-            padding: 3px 8px;
-            border-radius: 5px;
+            padding: 3px 9px;
+            border-radius: 6px;
             font-size: 11px;
             cursor: pointer;
         }
-        .toggle-btn:hover { background: #2563eb; border-color: #2563eb; }
+        .toggle-btn:hover { background: #16a34a; border-color: #16a34a; }
 
         /* ==================== 3. 边缘感应区 ==================== */
         .edge-sensor-zone {
@@ -227,10 +223,10 @@
             cursor: pointer;
         }
         .edge-sensor-zone:hover {
-            background: linear-gradient(to left, rgba(37, 99, 235, 0.3), transparent);
+            background: linear-gradient(to left, rgba(74, 222, 128, 0.3), transparent);
         }
 
-        /* ==================== 4. 抽屉主面板 (无杂乱框线·纯粹主体感) ==================== */
+        /* ==================== 4. 抽屉主面板 ==================== */
         .drawer-container {
             position: fixed;
             top: 0;
@@ -246,7 +242,7 @@
             flex-direction: column;
             z-index: 999;
             transform: translateX(100%);
-            transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease;
+            transition: transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
             position: relative;
             overflow: hidden;
         }
@@ -274,14 +270,20 @@
             gap: 8px;
         }
 
-        .header-icon {
-            width: 22px;
-            height: 22px;
-            color: var(--primary);
+        .header-leaf-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 7px;
+            background: linear-gradient(135deg, #22c55e, #15803d);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
         }
 
         .header-title {
-            font-size: 15.5px;
+            font-size: 15px;
             font-weight: 700;
             color: var(--text-main);
             letter-spacing: -0.2px;
@@ -292,7 +294,7 @@
             font-weight: 700;
             padding: 1px 7px;
             border-radius: 10px;
-            background: var(--primary-light);
+            background: rgba(22, 163, 74, 0.1);
             color: var(--primary);
         }
 
@@ -317,16 +319,16 @@
         }
 
         .action-btn:hover {
-            background: rgba(255, 255, 255, 0.6);
-            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.7);
+            color: var(--primary);
         }
 
         .action-btn.active, .action-btn.pinned-active {
             color: var(--primary);
-            background: var(--primary-light);
+            background: rgba(22, 163, 74, 0.12);
         }
 
-        /* ---------- 分类 Tab 栏 + 过滤与排序 (单行极简，无重度边框) ---------- */
+        /* ---------- 分类 Tab 栏 + 过滤与排序 ---------- */
         .category-tab-bar {
             display: flex;
             align-items: center;
@@ -354,7 +356,7 @@
 
         .tab-item:hover {
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.5);
         }
 
         .tab-item.active {
@@ -365,16 +367,11 @@
 
         .tab-count {
             font-size: 10px;
-            opacity: 0.75;
+            opacity: 0.8;
             padding: 0 4px;
             border-radius: 6px;
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        .tab-item.active .tab-count {
-            background: var(--primary-light);
+            background: rgba(22, 163, 74, 0.08);
             color: var(--primary);
-            opacity: 1;
         }
 
         .filter-box {
@@ -418,11 +415,11 @@
 
         .drawer-content::-webkit-scrollbar { width: 5px; }
         .drawer-content::-webkit-scrollbar-thumb {
-            background: rgba(148, 163, 184, 0.3);
+            background: rgba(0, 0, 0, 0.12);
             border-radius: 4px;
         }
 
-        /* ---------- 抽屉分组 (类似 iOS/HyperOS 的无感微光线分隔，无框) ---------- */
+        /* ---------- 抽屉分组 (高质感纯净微线分隔) ---------- */
         .section-group {
             display: flex;
             flex-direction: column;
@@ -469,7 +466,7 @@
             transform: rotate(-90deg);
         }
 
-        /* 核心精髓：类似图二的高质感渐变光线分隔 (无感分隔) */
+        /* 通透微光微线 (已移除刺眼的高饱和绿，恢复柔和自然的微线光感) */
         .section-divider-line {
             flex: 1;
             height: 1px;
@@ -483,7 +480,7 @@
             color: var(--text-muted);
         }
 
-        /* ---------- 4 列文件网格 (彻底去框化，图标为主角) ---------- */
+        /* ---------- 4 列文件网格 (精品 Apple/Mac 式图标色彩) ---------- */
         .file-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -494,7 +491,6 @@
             display: none;
         }
 
-        /* 单个文件：无框悬浮设计 (像 iOS / macOS 桌面图标) */
         .file-card {
             display: flex;
             flex-direction: column;
@@ -510,7 +506,6 @@
             width: 100%;
         }
 
-        /* 仅在悬停时浮现极其柔和的透光高亮底板 */
         .file-card:hover {
             background: var(--bg-card-hover);
             border-color: var(--border-card-hover);
@@ -524,7 +519,6 @@
             border-color: var(--primary);
         }
 
-        /* 过期灰显 */
         .file-card.stale {
             opacity: 0.45;
             filter: grayscale(0.85);
@@ -541,7 +535,7 @@
             width: 20px;
             height: 20px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.92);
             color: var(--text-muted);
             font-size: 10.5px;
             cursor: pointer;
@@ -551,7 +545,7 @@
             opacity: 0;
             transition: opacity 0.15s ease, transform 0.15s ease;
             z-index: 3;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
             border: none;
         }
 
@@ -565,9 +559,9 @@
 
         .pin-star.pinned {
             opacity: 1;
-            color: #f59e0b;
+            color: #d97706;
             background: #ffffff;
-            box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+            box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25);
         }
 
         .card-checkbox {
@@ -593,7 +587,7 @@
             color: #ffffff;
         }
 
-        /* 焦点主体：60x60 高质感圆角 Squircle 图标 (立体微阴影，无外层大框) */
+        /* 58x58 高级质感圆角 Squircle 图标 */
         .file-thumb-box {
             width: 58px;
             height: 58px;
@@ -604,7 +598,7 @@
             position: relative;
             border-radius: 13px;
             overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.03);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
@@ -662,78 +656,95 @@
             font-weight: 500;
         }
 
-        /* ---------- 白板便签墙 ---------- */
+        /* ---------- 📋 花笺便签墙 ---------- */
         .note-wall-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 12px;
         }
 
-        .whiteboard-box {
-            background: var(--sticky-bg);
-            border: 1px solid var(--sticky-border);
-            border-radius: 12px;
-            padding: 12px;
+        .floral-note-card {
+            border-radius: 14px;
+            padding: 14px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            min-height: 180px;
+            gap: 8px;
+            min-height: 190px;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(234, 179, 8, 0.08);
-            transition: all 0.18s ease;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+            position: relative;
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
-        .whiteboard-box:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(234, 179, 8, 0.16);
+        .floral-note-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
 
-        .whiteboard-header {
+        .note-theme-matcha {
+            background: rgba(244, 252, 245, 0.95);
+            border-color: #bbf7d0;
+            color: #14532d;
+        }
+        .note-theme-sakura {
+            background: rgba(255, 245, 246, 0.95);
+            border-color: #fecdd3;
+            color: #881337;
+        }
+
+        .note-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 12px;
             font-weight: 700;
-            color: var(--sticky-title);
-            border-bottom: 1px dashed rgba(234, 179, 8, 0.4);
-            padding-bottom: 4px;
+            border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+            padding-bottom: 5px;
+        }
+
+        .note-tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.05);
+            font-weight: 600;
         }
 
         .note-md-view {
             font-size: 11.5px;
             line-height: 1.6;
-            color: var(--sticky-text);
             flex: 1;
             overflow: auto;
         }
-        .note-md-view h4 { font-size: 12px; margin-bottom: 4px; color: var(--sticky-title); }
+        .note-md-view h4 { font-size: 12px; margin-bottom: 4px; }
         .note-md-view code {
             font-family: var(--font-mono);
             font-size: 10.5px;
-            background: rgba(133, 77, 14, 0.1);
+            background: rgba(0, 0, 0, 0.05);
             padding: 1px 4px;
             border-radius: 4px;
         }
 
-        .whiteboard-add-card {
-            border: 1.5px dashed rgba(245, 158, 11, 0.45);
-            background: rgba(254, 252, 232, 0.3);
-            border-radius: 12px;
+        .floral-add-card {
+            border: 1.5px dashed #86efac;
+            background: rgba(240, 253, 244, 0.4);
+            border-radius: 14px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 4px;
-            color: #b45309;
-            min-height: 180px;
+            color: var(--primary);
+            min-height: 190px;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: all 0.18s ease;
         }
-        .whiteboard-add-card:hover {
-            background: rgba(254, 252, 232, 0.7);
-            border-color: #f59e0b;
+        .floral-add-card:hover {
+            background: rgba(240, 253, 244, 0.85);
+            transform: translateY(-2px);
         }
 
-        /* ---------- 悬浮气泡预览 (P11) ---------- */
+        /* ---------- 悬浮气泡预览 ---------- */
         .preview-overlay {
             position: absolute;
             inset: 0;
@@ -747,9 +758,9 @@
             width: 260px;
             background: var(--preview-bg);
             backdrop-filter: blur(28px);
-            border: 1px solid rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.8);
             border-radius: 14px;
-            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -790,13 +801,13 @@
             font-weight: 600;
             color: var(--text-sub);
             border-top: var(--border-bottom-subtle);
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.6);
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
 
-        /* ---------- 批量选择操作条 (P9) ---------- */
+        /* ---------- 批量选择操作条 ---------- */
         .select-bar {
             display: flex;
             align-items: center;
@@ -813,25 +824,25 @@
             font-weight: 600;
             padding: 5px 11px;
             border-radius: 7px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: rgba(255, 255, 255, 0.9);
             color: var(--text-sub);
             cursor: pointer;
         }
-        .sb-btn:hover { color: var(--text-main); }
+        .sb-btn:hover { color: var(--primary); }
         .sb-btn.sb-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
         .sb-btn.sb-danger { color: #dc2626; }
         .sb-select {
             font-size: 11.5px;
             padding: 4px 6px;
             border-radius: 7px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: rgba(255, 255, 255, 0.9);
             color: var(--text-main);
             outline: none;
         }
 
-        /* ---------- 归档底部面板 (P12) ---------- */
+        /* ---------- 归档底部面板 ---------- */
         .archive-panel {
             position: absolute;
             left: 0;
@@ -842,7 +853,7 @@
             background: var(--bg-drawer);
             backdrop-filter: var(--blur-drawer);
             border-top: var(--border-bottom-subtle);
-            box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.1);
             display: flex;
             flex-direction: column;
         }
@@ -873,7 +884,7 @@
             justify-content: space-between;
             padding: 6px 10px;
             border-radius: 7px;
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.6);
             font-size: 11.5px;
         }
         .archive-mini-btn {
@@ -885,7 +896,7 @@
             cursor: pointer;
         }
 
-        /* ---------- 设置模态面板 (P12) ---------- */
+        /* ---------- 设置模态面板 ---------- */
         .settings-modal-overlay {
             position: absolute;
             inset: 0;
@@ -907,7 +918,7 @@
         .settings-title { font-size: 15px; font-weight: 700; }
         .settings-body { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
         .settings-group {
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.6);
             border-radius: 12px;
             padding: 12px 14px;
         }
@@ -923,7 +934,7 @@
         .settings-label-main { font-size: 12.5px; font-weight: 600; color: var(--text-main); }
         .settings-label-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
 
-        /* ---------- 底部状态栏 (无感微光线) ---------- */
+        /* ---------- 底部状态栏 (已修复文字颜色与低蓝光徽章) ---------- */
         .drawer-footer {
             padding: 7px 14px;
             background: var(--bg-footer);
@@ -937,14 +948,21 @@
             z-index: 20;
         }
 
+        /* 重点修复：去掉了突兀的亮绿字，采用低调自然的辅助文字色 */
         .footer-action-text {
-            color: var(--primary);
+            color: var(--text-sub);
             font-weight: 600;
             display: flex;
             align-items: center;
             gap: 4px;
             cursor: pointer;
             white-space: nowrap;
+            opacity: 0.85;
+            transition: color 0.15s, opacity 0.15s;
+        }
+        .footer-action-text:hover {
+            color: var(--primary);
+            opacity: 1;
         }
 
         .footer-mid-group {
@@ -953,10 +971,12 @@
             gap: 6px;
         }
 
+        /* 重点修复：去掉了刺眼的黄色警示框，改为自然低调的素雅胶囊 */
         .footer-stale-badge {
             font-size: 10.5px;
-            color: #b45309;
-            background: rgba(245, 158, 11, 0.15);
+            color: #92400e;
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
             padding: 1px 6px;
             border-radius: 5px;
             font-weight: 600;
@@ -967,11 +987,12 @@
             font-weight: 600;
             padding: 3px 8px;
             border-radius: 6px;
-            border: none;
-            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            background: rgba(255, 255, 255, 0.85);
             color: var(--text-sub);
             cursor: pointer;
             white-space: nowrap;
+            transition: all 0.15s ease;
         }
         .footer-mini-btn:hover { color: var(--primary); background: #fff; }
 
@@ -986,8 +1007,8 @@
             position: fixed;
             bottom: 24px;
             right: 500px;
-            background: rgba(15, 23, 42, 0.9);
-            color: #ffffff;
+            background: rgba(15, 28, 17, 0.92);
+            color: #dcfce7;
             font-size: 12px;
             font-weight: 600;
             padding: 8px 14px;
@@ -1010,56 +1031,59 @@
 </head>
 <body>
 
-    <!-- 1. 左上角风格与体验控制面板 -->
+    <!-- 1. 左上角护眼控制台 -->
     <div class="demo-control-panel">
         <div class="control-title">
-            <span>✨ 无感设计·视觉方案</span>
-            <span style="font-size: 11px; font-weight: normal; color: #94a3b8;">去框化 / 光感微线</span>
+            <span>🌿 自然植物·草绿护眼模式</span>
+            <span style="font-size: 11px; color: #86efac; font-weight: normal;">花笺美学</span>
         </div>
 
-        <!-- 核心双样式切换按钮 -->
+        <!-- 护眼双模式切换 -->
         <div class="style-switch-group">
-            <button class="style-switch-btn active" id="btnThemeAcrylic" onclick="setTheme('acrylic')">
-                <span>🧊 毛玻璃无感风</span>
+            <button class="style-switch-btn active" id="btnThemeNatureGlass" onclick="setTheme('nature-glass')">
+                <span>🍃 晨露薄竹 (透光)</span>
             </button>
-            <button class="style-switch-btn" id="btnThemeWhite" onclick="setTheme('white')">
-                <span>⚪ 纯白极简风</span>
+            <button class="style-switch-btn" id="btnThemeNatureSolid" onclick="setTheme('nature-solid')">
+                <span>🍵 润目温茶 (实色)</span>
             </button>
         </div>
 
-        <!-- 切换桌面壁纸体验透光 -->
+        <!-- 自然植物背景切换 -->
         <div class="wallpaper-bar">
-            <span style="font-size: 11px; color: #94a3b8;">壁纸:</span>
-            <button class="wp-btn active" onclick="setWallpaper('aurora', this)">极光</button>
-            <button class="wp-btn" onclick="setWallpaper('nature', this)">绿意</button>
-            <button class="wp-btn" onclick="setWallpaper('mountain', this)">雪山</button>
-            <button class="wp-btn" onclick="setWallpaper('minimal', this)">光影</button>
+            <span style="font-size: 11px; color: #86efac;">壁纸:</span>
+            <button class="wp-btn active" onclick="setWallpaper('nature', this)">绿意林隙</button>
+            <button class="wp-btn" onclick="setWallpaper('bamboo', this)">清幽竹海</button>
+            <button class="wp-btn" onclick="setWallpaper('tea', this)">高山茶园</button>
+            <button class="wp-btn" onclick="setWallpaper('aurora', this)">极光晨曦</button>
         </div>
 
         <div class="edge-tip">
-            <span>👉 鼠标移至屏幕最右侧唤出</span>
-            <button class="toggle-btn" onclick="toggleDrawer()">切换展开</button>
+            <span>👉 鼠标贴最右边缘滑出工作区</span>
+            <button class="toggle-btn" onclick="toggleDrawer()">展开/收起</button>
         </div>
     </div>
 
     <!-- 2. 屏幕右侧无形悬停感应区 -->
     <div class="edge-sensor-zone" id="edgeSensor"></div>
 
-    <!-- 3. 右侧贴边抽屉面板 (无框通透·微光线无感分隔) -->
+    <!-- 3. 右侧贴边抽屉面板 -->
     <div class="drawer-container" id="drawerContainer">
 
         <!-- 顶部标题栏 -->
         <div class="drawer-header">
             <div class="header-left">
-                <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
-                </svg>
+                <div class="header-leaf-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+                        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+                    </svg>
+                </div>
                 <span class="header-title">临时工作区</span>
                 <span class="header-badge" id="totalBadge">12 项</span>
             </div>
 
             <div class="header-actions">
-                <button class="action-btn" title="一键切换风格" onclick="toggleThemeQuick()">
+                <button class="action-btn" title="一键切换：透光毛玻璃 / 润目实色" onclick="toggleThemeQuick()">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20Z" fill="currentColor"/></svg>
                 </button>
                 <button class="action-btn" title="在资源管理器中打开" onclick="showToast('已在资源管理器中定位工作区')">
@@ -1086,7 +1110,7 @@
             <div class="tab-item" data-tab="image" onclick="switchTab('image', this)">🖼️ 图片 <span class="tab-count" id="tabCountImg">2</span></div>
             <div class="tab-item" data-tab="video" onclick="switchTab('video', this)">🎬 视频 <span class="tab-count" id="tabCountVideo">1</span></div>
             <div class="tab-item" data-tab="doc" onclick="switchTab('doc', this)">📄 文档 <span class="tab-count" id="tabCountDoc">7</span></div>
-            <div class="tab-item" data-tab="whiteboard" onclick="switchTab('whiteboard', this)">📋 白板 <span class="tab-count" id="tabCountNote">2</span></div>
+            <div class="tab-item" data-tab="whiteboard" onclick="switchTab('whiteboard', this)">🌸 花笺便签 <span class="tab-count" id="tabCountNote">2</span></div>
 
             <input type="search" id="filterBox" class="filter-box" placeholder="🔍 过滤..." oninput="handleSearch(this.value)" />
             <select id="sortBox" class="sort-box" onchange="handleSort(this.value)">
@@ -1109,9 +1133,9 @@
             <button class="sb-btn sb-danger" id="btnSelDelete" onclick="deleteSelected()">删除 (0)</button>
             <select class="sb-select" id="selTargetDrawer">
                 <option value="">移至: 根目录</option>
-                <option value="🚀 核心项目">移至: 🚀 核心项目</option>
+                <option value="🌿 核心项目">移至: 🌿 核心项目</option>
                 <option value="🎨 视觉方案">移至: 🎨 视觉方案</option>
-                <option value="👤 个人与临时">移至: 👤 个人与临时</option>
+                <option value="🍃 个人与灵感">移至: 🍃 个人与灵感</option>
             </select>
             <button class="sb-btn sb-primary" onclick="moveSelected()">移入</button>
             <button class="sb-btn" onclick="toggleSelectMode(false)">完成</button>
@@ -1137,12 +1161,12 @@
             </div>
             <div class="settings-body">
                 <div class="settings-group">
-                    <div class="settings-group-title">外观视觉风格</div>
+                    <div class="settings-group-title">草绿护眼模式</div>
                     <div class="settings-row">
-                        <div class="settings-label-main">选择当前主题</div>
+                        <div class="settings-label-main">选择护眼主题</div>
                         <select class="sort-box" id="themeSelect" onchange="setTheme(this.value)">
-                            <option value="acrylic" selected>🧊 毛玻璃无感风 (Frosted Acrylic)</option>
-                            <option value="white">⚪ 纯白极简风 (Solid Minimal)</option>
+                            <option value="nature-glass" selected>🍃 晨露薄竹 (Nature Acrylic)</option>
+                            <option value="nature-solid">🍵 润目温茶 (Nature Solid)</option>
                         </select>
                     </div>
                 </div>
@@ -1154,7 +1178,7 @@
                             <div class="settings-label-main">灰显与提醒</div>
                             <div class="settings-label-sub">超过指定天数未修改的文件卡片变灰</div>
                         </div>
-                        <input type="checkbox" id="setStaleCheck" checked onchange="toggleStaleSetting(this.checked)" style="width: 16px; height: 16px; cursor: pointer;">
+                        <input type="checkbox" id="setStaleCheck" checked onchange="toggleStaleSetting(this.checked)" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary);">
                     </div>
                     <div class="settings-row">
                         <div class="settings-label-main">过期判定天数</div>
@@ -1190,14 +1214,15 @@
             </div>
         </div>
 
-        <!-- 底部状态栏 -->
+        <!-- 底部状态栏 (已修复：去除了突兀亮绿，改用自然协调的辅助灰度) -->
         <div class="drawer-footer">
             <span class="footer-action-text" onclick="showToast('拖入文件即可自动移入工作区')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
                 <span>拖入即移入</span>
             </span>
 
             <div class="footer-mid-group">
+                <!-- 柔和微琥珀色徽章，不再突兀 -->
                 <span class="footer-stale-badge" id="staleBadge">⏳ 2项>14天</span>
                 <button class="footer-mini-btn" id="btnArchiveQuick" onclick="quickArchiveStale()">一键归档</button>
                 <button class="footer-mini-btn" id="btnArchivePanelToggle" onclick="toggleArchivePanel()">归档 ▲</button>
@@ -1213,33 +1238,33 @@
     </div>
 
     <script>
-        // ==================== 5. 交互逻辑与数据驱动 ====================
+        // ==================== 5. 交互逻辑与自然数据流 ====================
         const wallpapers = {
-            aurora: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=2200&q=85',
-            nature: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=2000&q=80',
-            mountain: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=2000&q=80',
-            minimal: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=2000&q=80'
+            nature: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=2200&q=85',
+            bamboo: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=2000&q=80',
+            tea: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=2000&q=80',
+            aurora: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=2200&q=85'
         };
 
         // 模拟数据 (4 列标准无挤压)
         let mockFiles = [
-            // 组 1：🚀 核心项目 (4 项)
-            { id: 'f1', name: '策划案初稿_0902.docx', kind: 'doc', ext: 'docx', drawer: '🚀 核心项目', pinned: true, openCount: 14, size: 24500, mtime: '2026-09-03 21:30', stale: false, previewType: 'text', previewContent: '# 策划案初稿\n\n- 核心工作区收纳\n- 无框悬浮与微光线无感分隔\n- 统一 4 列网格排版' },
-            { id: 'f2', name: '索恩角色原画.jpg', kind: 'image', ext: 'jpg', drawer: '🚀 核心项目', pinned: true, openCount: 8, size: 142000, mtime: '2026-09-03 18:40', stale: false, thumb: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', previewType: 'image', previewContent: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80' },
-            { id: 'f3', name: '交互录屏_0820.mp4', kind: 'video', ext: 'mp4', drawer: '🚀 核心项目', pinned: false, openCount: 5, size: 15400000, mtime: '2026-09-02 11:20', stale: false, thumb: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=200&q=80', previewType: 'video', previewContent: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' },
-            { id: 'f4', name: '项目排期表.xlsx', kind: 'doc', ext: 'xlsx', drawer: '🚀 核心项目', pinned: false, openCount: 4, size: 56200, mtime: '2026-09-01 10:00', stale: false, previewType: 'text', previewContent: 'Excel: 2026年9月冲刺进度表' },
+            // 组 1：🌿 核心项目 (4 项)
+            { id: 'f1', name: '植物生态策划案.docx', kind: 'doc', ext: 'docx', drawer: '🌿 核心项目', pinned: true, openCount: 14, size: 24500, mtime: '2026-09-03 21:30', stale: false, previewType: 'text', previewContent: '# 植物生态策划案\n\n- 引入自然草绿低蓝光配色\n- 拟物花笺便签纸排版\n- 4 列无框悬浮网格' },
+            { id: 'f2', name: '晨曦森林原画.jpg', kind: 'image', ext: 'jpg', drawer: '🌿 核心项目', pinned: true, openCount: 8, size: 142000, mtime: '2026-09-03 18:40', stale: false, thumb: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=200&q=80', previewType: 'image', previewContent: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80' },
+            { id: 'f3', name: '微风竹影实拍.mp4', kind: 'video', ext: 'mp4', drawer: '🌿 核心项目', pinned: false, openCount: 5, size: 15400000, mtime: '2026-09-02 11:20', stale: false, thumb: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=200&q=80', previewType: 'video', previewContent: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' },
+            { id: 'f4', name: '林业数据报表.xlsx', kind: 'doc', ext: 'xlsx', drawer: '🌿 核心项目', pinned: false, openCount: 4, size: 56200, mtime: '2026-09-01 10:00', stale: false, previewType: 'text', previewContent: 'Excel: 2026年林区植被生长统计' },
 
             // 组 2：🎨 视觉方案 (4 项)
-            { id: 'f5', name: 'UI设计系统规范.pdf', kind: 'doc', ext: 'pdf', drawer: '🎨 视觉方案', pinned: false, openCount: 6, size: 1850000, mtime: '2026-09-03 16:20', stale: false, previewType: 'text', previewContent: 'PDF: UI System Color Tokens & Grid Specifications' },
-            { id: 'f6', name: '毛玻璃组件库.fig', kind: 'doc', ext: 'fig', drawer: '🎨 视觉方案', pinned: false, openCount: 3, size: 3400000, mtime: '2026-09-03 14:00', stale: false, previewType: 'text', previewContent: 'Figma Component Library' },
-            { id: 'f7', name: '概念壁纸_4K.png', kind: 'image', ext: 'png', drawer: '🎨 视觉方案', pinned: false, openCount: 7, size: 890000, mtime: '2026-09-02 20:10', stale: false, thumb: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=200&q=80', previewType: 'image', previewContent: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80' },
-            { id: 'f8', name: '动效走查清单.txt', kind: 'doc', ext: 'txt', drawer: '🎨 视觉方案', pinned: false, openCount: 2, size: 4200, mtime: '2026-09-02 09:30', stale: false, previewType: 'text', previewContent: '1. 滑出缓动曲线\n2. 气泡预览淡入 150ms' },
+            { id: 'f5', name: '草木绿护眼规范.pdf', kind: 'doc', ext: 'pdf', drawer: '🎨 视觉方案', pinned: false, openCount: 6, size: 1850000, mtime: '2026-09-03 16:20', stale: false, previewType: 'text', previewContent: 'PDF: Eye-Care Color Tokens & Botanical Aesthetics' },
+            { id: 'f6', name: '花笺拟物组件.fig', kind: 'doc', ext: 'fig', drawer: '🎨 视觉方案', pinned: false, openCount: 3, size: 3400000, mtime: '2026-09-03 14:00', stale: false, previewType: 'text', previewContent: 'Figma: Floral Notepaper Stationery Components' },
+            { id: 'f7', name: '晨雾壁纸_4K.png', kind: 'image', ext: 'png', drawer: '🎨 视觉方案', pinned: false, openCount: 7, size: 890000, mtime: '2026-09-02 20:10', stale: false, thumb: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=200&q=80', previewType: 'image', previewContent: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=600&q=80' },
+            { id: 'f8', name: '自然呼吸动效.txt', kind: 'doc', ext: 'txt', drawer: '🎨 视觉方案', pinned: false, openCount: 2, size: 4200, mtime: '2026-09-02 09:30', stale: false, previewType: 'text', previewContent: '1. 叶脉柔和淡入 180ms\n2. 气泡微浮呼吸' },
 
-            // 组 3：👤 个人与临时 (4 项)
-            { id: 'f9', name: '状态栏配置.txt', kind: 'doc', ext: 'txt', drawer: '👤 个人与临时', pinned: false, openCount: 1, size: 5400, mtime: '2026-08-10 09:12', stale: true, previewType: 'text', previewContent: 'PORT=8080\nDEBUG=false' },
-            { id: 'f10', name: '小手机备忘录.txt', kind: 'doc', ext: 'txt', drawer: '👤 个人与临时', pinned: false, openCount: 2, size: 3800, mtime: '2026-08-08 16:30', stale: true, previewType: 'text', previewContent: '1. 键盘润轴\n2. 整理工作区临时文件' },
-            { id: 'f11', name: '8月收支汇总.xlsx', kind: 'doc', ext: 'xlsx', drawer: '👤 个人与临时', pinned: false, openCount: 5, size: 142000, mtime: '2026-09-03 15:40', stale: false, previewType: 'text', previewContent: '收支报表' },
-            { id: 'f12', name: '快捷键速记.md', kind: 'doc', ext: 'md', drawer: '👤 个人与临时', pinned: false, openCount: 3, size: 1200, mtime: '2026-09-03 11:00', stale: false, previewType: 'text', previewContent: 'Ctrl+Shift+Z 唤出\nEsc 清除搜索' }
+            // 组 3：🍃 个人与灵感 (4 项)
+            { id: 'f9', name: '植树计划清单.xlsx', kind: 'doc', ext: 'xlsx', drawer: '🍃 个人与灵感', pinned: false, openCount: 5, size: 142000, mtime: '2026-09-03 15:40', stale: false, previewType: 'text', previewContent: '计划表' },
+            { id: 'f10', name: '植物图鉴笔记.md', kind: 'doc', ext: 'md', drawer: '🍃 个人与灵感', pinned: false, openCount: 3, size: 1200, mtime: '2026-09-03 11:00', stale: false, previewType: 'text', previewContent: '### 罗汉松\n四季常青，生机盎然。' },
+            { id: 'f11', name: '茶室配置.txt', kind: 'doc', ext: 'txt', drawer: '🍃 个人与灵感', pinned: false, openCount: 1, size: 5400, mtime: '2026-08-10 09:12', stale: true, previewType: 'text', previewContent: 'TEMP=24\nLIGHT=warm_green' },
+            { id: 'f12', name: '随手灵感速记.txt', kind: 'doc', ext: 'txt', drawer: '🍃 个人与灵感', pinned: false, openCount: 2, size: 3800, mtime: '2026-08-08 16:30', stale: true, previewType: 'text', previewContent: '1. 尝试将便签渲染为古法花笺纸\n2. 降低强光反射' }
         ];
 
         let archiveFiles = [
@@ -1247,9 +1272,10 @@
             { id: 'a2', name: '废弃录屏片段_0720.mp4', size: '32 MB' }
         ];
 
+        // 🌸 花笺便签数据
         let mockNotes = [
-            { id: 'n1', title: '📌 今日待办便签', content: '#### 今日任务\n- [x] 去除多余生硬边框\n- [x] 实现类似 iOS 的渐变发光无感分隔线\n- [ ] 体验纯白与毛玻璃对比' },
-            { id: 'n2', title: '💡 视觉设计要点', content: '#### 极简美学\n1. 图标 Squircle 才是视觉主体\n2. 默认无框，悬停才显高亮\n3. 层次靠轻微光感与间距表达' }
+            { id: 'n1', title: '🍃 抹茶花笺 · 今日随手记', theme: 'note-theme-matcha', tag: '茶笺', content: '#### 今日花笺待办\n- [x] 调配草绿护眼自然调色盘\n- [x] 引入花笺拟物便签纸样式\n- [ ] 享受自然舒缓的视觉流动' },
+            { id: 'n2', title: '🌸 樱落花笺 · 灵感撷取', theme: 'note-theme-sakura', tag: '花笺', content: '#### 诗意备忘\n> *草木有本心，何求美人折。*\n\n1. 纯文本轻量编辑\n2. 诗意 Markdown 排版' }
         ];
 
         let currentTab = 'all';
@@ -1260,7 +1286,7 @@
         let selectedFileIds = new Set();
         let collapsedGroups = new Set();
         let staleEnabled = true;
-        let currentTheme = 'acrylic';
+        let currentTheme = 'nature-glass';
 
         let hoverTimer = null;
         let peekCloseTimer = null;
@@ -1274,15 +1300,15 @@
             currentTheme = theme;
             document.documentElement.setAttribute('data-theme', theme);
 
-            document.getElementById('btnThemeWhite').classList.toggle('active', theme === 'white');
-            document.getElementById('btnThemeAcrylic').classList.toggle('active', theme === 'acrylic');
+            document.getElementById('btnThemeNatureGlass').classList.toggle('active', theme === 'nature-glass');
+            document.getElementById('btnThemeNatureSolid').classList.toggle('active', theme === 'nature-solid');
             document.getElementById('themeSelect').value = theme;
 
-            showToast(theme === 'white' ? '⚪ 已切换至【纯白极简风】' : '🧊 已切换至【毛玻璃无感风】');
+            showToast(theme === 'nature-glass' ? '🍃 已切换至【晨露薄竹 (透光毛玻璃)】' : '🍵 已切换至【润目温茶 (润目实色)】');
         }
 
         function toggleThemeQuick() {
-            setTheme(currentTheme === 'white' ? 'acrylic' : 'white');
+            setTheme(currentTheme === 'nature-glass' ? 'nature-solid' : 'nature-glass');
         }
 
         function setWallpaper(type, btn) {
@@ -1371,7 +1397,7 @@
             const container = document.getElementById('fileSectionsContainer');
             container.innerHTML = '';
 
-            const drawerNames = ['🚀 核心项目', '🎨 视觉方案', '👤 个人与临时'];
+            const drawerNames = ['🌿 核心项目', '🎨 视觉方案', '🍃 个人与灵感'];
 
             drawerNames.forEach(dName => {
                 const items = groupsMap[dName] || [];
@@ -1404,7 +1430,7 @@
             bindCardEvents();
         }
 
-        // 文件卡片渲染 (无多余大框，主体是圆角图标 + 文字)
+        // 精品 Apple / Mac 风格专业配色 Squircle 图标 (告别杂乱刺眼)
         function renderFileCardHtml(it) {
             const isStale = staleEnabled && it.stale;
             const isSelected = selectedFileIds.has(it.id);
@@ -1415,16 +1441,22 @@
             } else if (it.kind === 'video') {
                 thumbHtml = `<img src="${it.thumb}" alt="${it.name}"><div class="video-play-badge">▶</div>`;
             } else {
-                let color = '#2563eb', label = 'DOC';
-                if (it.ext === 'pdf') { color = '#ef4444'; label = 'PDF'; }
-                if (it.ext === 'xlsx') { color = '#059669'; label = 'XLS'; }
-                if (it.ext === 'txt') { color = '#64748b'; label = 'TXT'; }
-                if (it.ext === 'md') { color = '#8b5cf6'; label = 'MD'; }
-                if (it.ext === 'fig') { color = '#a855f7'; label = 'FIG'; }
+                let grad = 'linear-gradient(135deg, #3b82f6, #1d4ed8)', label = 'DOC';
+                if (it.ext === 'pdf') { grad = 'linear-gradient(135deg, #f43f5e, #e11d48)'; label = 'PDF'; }
+                if (it.ext === 'xlsx') { grad = 'linear-gradient(135deg, #10b981, #059669)'; label = 'XLS'; }
+                if (it.ext === 'txt') { grad = 'linear-gradient(135deg, #64748b, #475569)'; label = 'TXT'; }
+                if (it.ext === 'md') { grad = 'linear-gradient(135deg, #8b5cf6, #6d28d9)'; label = 'MD'; }
+                if (it.ext === 'fig') { grad = 'linear-gradient(135deg, #a855f7, #7c3aed)'; label = 'FIG'; }
 
                 thumbHtml = `
                     <svg class="file-icon-svg" viewBox="0 0 64 64" fill="none">
-                        <rect width="64" height="64" rx="14" fill="${color}"/>
+                        <defs>
+                            <linearGradient id="grad_${it.id}" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="${grad.split(', ')[1]}"/>
+                                <stop offset="100%" stop-color="${grad.split(', ')[2].replace(')', '')}"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="64" height="64" rx="14" fill="url(#grad_${it.id})"/>
                         <text x="32" y="39" fill="white" font-size="14" font-weight="bold" text-anchor="middle" font-family="sans-serif">${label}</text>
                     </svg>
                 `;
@@ -1444,23 +1476,25 @@
             `;
         }
 
+        // 🌸 花笺便签墙渲染
         function renderWhiteboard() {
             const container = document.getElementById('whiteboardContainer');
             container.innerHTML = `
                 <div class="note-wall-grid">
                     ${mockNotes.map(n => `
-                        <div class="whiteboard-box" onclick="showToast('已打开独立便签窗口: ${n.title}')">
-                            <div class="whiteboard-header">
+                        <div class="floral-note-card ${n.theme}" onclick="showToast('已打开花笺独立窗口: ${n.title}')">
+                            <div class="note-header">
                                 <span>${n.title}</span>
+                                <span class="note-tag">${n.tag}</span>
                             </div>
                             <div class="note-md-view">
-                                ${n.content.replace(/#### (.*)/g, '<h4>$1</h4>').replace(/- \[x\] (.*)/g, '<div>✓ $1</div>').replace(/- \[ \] (.*)/g, '<div>○ $1</div>').replace(/\n/g, '<br>')}
+                                ${n.content.replace(/#### (.*)/g, '<h4>$1</h4>').replace(/- \[x\] (.*)/g, '<div>✓ $1</div>').replace(/- \[ \] (.*)/g, '<div>○ $1</div>').replace(/blockquote/g, 'blockquote').replace(/\n/g, '<br>')}
                             </div>
                         </div>
                     `).join('')}
-                    <div class="whiteboard-add-card" onclick="createNewNote()">
-                        <span style="font-size: 18px;">+</span>
-                        <span style="font-size: 11.5px; font-weight: 700;">新建便签</span>
+                    <div class="floral-add-card" onclick="createNewNote()">
+                        <span style="font-size: 20px;">🌸</span>
+                        <span style="font-size: 11.5px; font-weight: 700;">采撷新花笺</span>
                     </div>
                 </div>
             `;
@@ -1486,7 +1520,7 @@
                         updateSelectBar();
                         render();
                     } else {
-                        showToast(`已调用默认程序打开: ${file.name}`);
+                        showToast(`已调用系统默认程序打开: ${file.name}`);
                     }
                 });
 
@@ -1644,7 +1678,7 @@
 
         function restoreArchive(index) {
             const item = archiveFiles.splice(index, 1)[0];
-            mockFiles.push({ id: 'f_' + Date.now(), name: item.name, kind: 'doc', ext: 'docx', drawer: '🚀 核心项目', pinned: false, openCount: 1, size: 20000, mtime: '2026-09-04 01:00', stale: false, previewType: 'text', previewContent: '恢复文件' });
+            mockFiles.push({ id: 'f_' + Date.now(), name: item.name, kind: 'doc', ext: 'docx', drawer: '🌿 核心项目', pinned: false, openCount: 1, size: 20000, mtime: '2026-09-04 01:00', stale: false, previewType: 'text', previewContent: '恢复文件' });
             renderArchiveList();
             render();
             showToast(`已移回「${item.name}」`);
@@ -1672,8 +1706,9 @@
         }
 
         function createNewNote() {
-            mockNotes.push({ id: 'n_' + Date.now(), title: '📌 新随手记', content: '#### 新便签\n在此记录临时想法...' });
+            mockNotes.push({ id: 'n_' + Date.now(), title: '🌸 新花笺', theme: 'note-theme-matcha', tag: '新笺', content: '#### 新花笺\n在此采撷自然灵感与思路...' });
             render();
+            showToast('已采撷一张新花笺');
         }
 
         function refreshList() {

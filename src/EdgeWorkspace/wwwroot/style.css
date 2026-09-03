@@ -4,6 +4,10 @@
   --font-main: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei UI", sans-serif;
   --primary: #2563eb;
   --primary-light: #eff6ff;
+  /* 品牌方块渐变（顶栏图标跟随主题，不再出现异色蓝文件夹） */
+  --brand-from: #3b82f6;
+  --brand-to: #1d4ed8;
+  --brand-glow: rgba(37,99,235,.25);
   --text-main: #0f172a;
   --text-sub: #64748b;
   --text-muted: #94a3b8;
@@ -16,6 +20,11 @@
   --tab-active-bg: #ffffff;
   --bg-panel: #fafbfc;
   --bg-hover: #f1f5f9;
+  /* 文件卡片与分隔线（无框化：卡片默认不着色，悬停才浮起；分隔线右端淡出不横穿） */
+  --card-bg: var(--bg-card);
+  --card-bg-hover: var(--bg-hover);
+  --divider-line: linear-gradient(90deg, rgba(15,23,42,.10) 0%, rgba(15,23,42,.03) 65%, transparent 100%);
+  --star-pinned: #d97706;   /* 置顶星标：各主题通用点睛琥珀 */
   /* 便签羊皮纸主题（整组替换即可换肤；低饱和暖调） */
   --sticky-bg: #f5efdc;
   --sticky-bg-soft: #faf5e9;
@@ -32,36 +41,67 @@
   --sticky-quote: #7a6848;
 }
 
-/* 🌿 P13: 护眼模式（豆沙绿低眩光；便签沿用羊皮纸） */
-html[data-theme="eye"] {
-  --primary: #2f8f5b;
-  --primary-light: rgba(47, 143, 91, 0.14);
-  --text-main: #2c3a31;
-  --text-sub: #4c6154;
-  --text-muted: #7c8f83;
-  --section-title: #44614f;
-  --border-color: #b7d5bd;
-  --border-subtle: #cfe5d4;
-  --bg-card: #dcefe3;
-  --bg-drawer: #cfe8d4;
-  --overlay-bg: #dcefe3;
-  --tab-active-bg: #e3f3e7;
-  --bg-panel: #c3dfc9;
-  --bg-hover: #cde3d2;
+/* 🌿 P13: 护眼草绿（低饱和黄绿·森林透光，参考 Demo 草绿护眼版）。
+   实色版 eye 与毛玻璃版 eye-glass 共用同一套色系，只有底层铺法不同。 */
+html[data-theme="eye"],
+html[data-theme="eye-glass"] {
+  --primary: #4d9a2f;                        /* 叶脉黄绿，低饱和不刺眼 */
+  --primary-light: rgba(77, 154, 47, 0.10);
+  --brand-from: #86c34a;
+  --brand-to: #4b8a2b;
+  --brand-glow: rgba(75,138,43,.28);
+  --text-main: #22301a;                      /* 暖橄榄墨，避免纯深绿的单调 */
+  --text-sub: #4a5b3c;
+  --text-muted: #7d8c6c;
+  --section-title: #3d5130;
+  --border-color: #dfe7cf;
+  --border-subtle: #eef2e3;
+  --card-bg: transparent;    /* 卡片不着色，靠彩色类型图标提供色彩，避免整屏色块 */
+  /* 🌸 花笺便签（黄绿低饱和） */
+  --sticky-title: #33501f;
+  --sticky-text: #3b5524;
+  --sticky-muted: #a8c489;
+  --sticky-accent-text: #4d7a2c;
+  --sticky-btn-primary: #4d9a2f;
+  --sticky-btn-primary-hover: #3f7f26;
+  --sticky-quote: #4a6a30;
 }
 
-/* 🧊 P13: 毛玻璃（参数取自视觉方案 Demo 风格 A）。
-   真透底 = DWM 亚克力模糊桌面（C# SetWindowCompositionAttribute）+ WebView2 透明背景；
-   CSS 半透明白提供主层，卡片无框化（悬停才浮现）。 */
+/* 实色版：不透明纸质底，暖阳光斑自左上斜落，向下渐入林荫 */
+html[data-theme="eye"] {
+  --bg-drawer:
+    radial-gradient(130% 62% at 14% -12%, rgba(255,252,226,.95) 0%, rgba(255,252,226,0) 58%),
+    linear-gradient(168deg, #f8fbec 0%, #f0f6e0 46%, #e7f0d9 100%);
+  --bg-card: #ffffff;
+  --overlay-bg: #fbfdf4;
+  --tab-active-bg: #fdfef8;
+  --bg-panel: #f0f5e4;
+  --bg-hover: #e9f0da;
+  --card-bg-hover: #fdfef8;
+  --divider-line: linear-gradient(90deg, rgba(45,60,26,.12) 0%, rgba(45,60,26,.03) 65%, transparent 100%);
+  --sticky-bg: #f6fbe9;
+  --sticky-bg-soft: #fcfdf4;
+  --sticky-border: #d9e8bd;
+  --sticky-hover: #edf5db;
+  --sticky-btn-bg: #ffffff;
+  --sticky-accent: #e3eecb;
+}
+
+/* 🧊 P13: 纯白毛玻璃（无色相）。真透底 = DWM 亚克力模糊桌面
+   （C# SetWindowCompositionAttribute）+ WebView2 透明背景；CSS 只铺一层半透明白
+   （body 必须透明，两层 rgba 叠加会把透底吃掉），卡片无框化（悬停才浮现）。 */
 html[data-theme="acrylic"] {
   --bg-drawer: rgba(255, 255, 255, 0.68);
   --bg-panel: rgba(255, 255, 255, 0.30);
   --bg-card: transparent;
+  --card-bg: transparent;
+  --card-bg-hover: rgba(255, 255, 255, 0.85);
   --bg-hover: rgba(255, 255, 255, 0.65);
   --border-color: rgba(255, 255, 255, 0.60);
   --border-subtle: rgba(255, 255, 255, 0.30);
   --tab-active-bg: rgba(255, 255, 255, 0.90);
   --overlay-bg: rgba(255, 255, 255, 0.97);   /* 覆盖层必须接近不透明，透出底层内容不可读 */
+  --divider-line: linear-gradient(90deg, rgba(255,255,255,.80) 0%, rgba(255,255,255,.25) 65%, transparent 100%);
   --sticky-bg: rgba(245, 239, 220, 0.88);
   --sticky-bg-soft: rgba(250, 245, 233, 0.88);
   --sticky-hover: rgba(236, 228, 201, 0.82);
@@ -69,6 +109,31 @@ html[data-theme="acrylic"] {
   --sticky-accent: rgba(222, 210, 176, 0.65);
   --sticky-border: rgba(227, 216, 189, 0.65);
 }
+/* 🌿🧊 P13: 护眼草绿毛玻璃 = 上面的黄绿色系 + 半透明着色层叠在 DWM 亚克力之上。
+   透光感来自「暖阳光斑 + 斜向黄绿」两层渐变，模拟阳光穿过树冠。 */
+html[data-theme="eye-glass"] {
+  --bg-drawer:
+    radial-gradient(130% 62% at 14% -12%, rgba(255,251,214,.62) 0%, rgba(255,251,214,0) 58%),
+    linear-gradient(168deg, rgba(248,251,232,.72) 0%, rgba(238,246,222,.64) 46%, rgba(228,239,216,.70) 100%);
+  --bg-card: transparent;
+  --bg-panel: rgba(255, 255, 255, 0.30);
+  --bg-hover: rgba(255, 255, 255, 0.58);
+  --card-bg-hover: rgba(255, 255, 255, 0.82);
+  --border-color: rgba(255, 255, 255, 0.62);
+  --border-subtle: rgba(255, 255, 255, 0.34);
+  --tab-active-bg: rgba(255, 255, 255, 0.90);
+  --overlay-bg: rgba(250, 252, 240, 0.97);
+  --divider-line: linear-gradient(90deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.28) 65%, transparent 100%);
+  --sticky-bg: rgba(246, 251, 233, 0.88);
+  --sticky-bg-soft: rgba(252, 253, 244, 0.90);
+  --sticky-border: rgba(217, 232, 189, 0.80);
+  --sticky-hover: rgba(237, 245, 219, 0.85);
+  --sticky-btn-bg: rgba(255, 255, 255, 0.80);
+  --sticky-accent: rgba(227, 238, 203, 0.85);
+}
+
+html[data-theme="acrylic"] body,
+html[data-theme="eye-glass"] body { background: transparent; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
 
@@ -90,6 +155,13 @@ body {
   flex-shrink: 0;
 }
 .header-left { display: flex; align-items: center; gap: 8px; }
+/* 品牌方块（渐变跟随主题色） */
+.header-leaf-icon {
+  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--brand-from), var(--brand-to));
+  color: #fff; box-shadow: 0 2px 6px var(--brand-glow);
+}
 .header-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
 .header-badge {
   font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 12px;
@@ -107,9 +179,11 @@ body {
 .category-tab-bar {
   display: flex; align-items: center; padding: 8px 14px; gap: 4px;
   border-bottom: 1px solid var(--border-color); background: var(--bg-panel); flex-shrink: 0;
+  overflow: hidden;   /* Tab 带文字+计数后宽度吃紧，溢出时裁切而不撑破布局 */
 }
 .tab-item {
-  padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; gap: 3px;
+  padding: 5px 8px; border-radius: 8px; font-size: 12px; font-weight: 600;
   color: var(--text-sub); cursor: pointer; transition: all .2s ease; white-space: nowrap;
 }
 .tab-item:hover { background: var(--bg-hover); color: var(--text-main); }
@@ -117,11 +191,16 @@ body {
   background: var(--tab-active-bg); color: var(--primary);
   box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
 }
+/* 类别计数（空类别由 JS 隐藏，避免一排 0 的噪声） */
+.tab-count {
+  font-size: 9.5px; font-weight: 700; padding: 0 3px; border-radius: 6px;
+  background: var(--primary-light); color: var(--primary);
+}
 
 /* P10: 过滤框 + 排序下拉（Tab 栏右侧） */
 .filter-box {
-  margin-left: auto; min-width: 90px; flex: 0 1 150px;
-  font-size: 12px; padding: 5px 9px; border-radius: 8px;
+  margin-left: auto; min-width: 66px; flex: 0 1 110px;
+  font-size: 11.5px; padding: 4px 8px; border-radius: 8px;
   border: 1px solid var(--border-color); background: var(--bg-card);
   color: var(--text-main); font-family: inherit; outline: none;
   transition: border-color .15s ease;
@@ -130,7 +209,7 @@ body {
 .filter-box:focus { border-color: var(--primary); }
 .filter-box::-webkit-search-cancel-button { cursor: pointer; }
 .sort-box {
-  font-size: 12px; padding: 5px 6px; border-radius: 8px;
+  font-size: 11.5px; padding: 4px 4px; border-radius: 8px;
   border: 1px solid var(--border-color); background: var(--bg-card);
   color: var(--text-sub); font-family: inherit; outline: none; cursor: pointer;
 }
@@ -165,7 +244,7 @@ body {
 .toggle-arrow { width: 14px; height: 14px; transition: transform .2s ease; color: var(--text-muted); }
 .section-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .section-count { font-size: 11px; font-weight: 500; color: var(--text-muted); }
-.section-divider-line { flex: 1; height: 1px; background: var(--border-color); margin: 0 10px; }
+.section-divider-line { flex: 1; height: 1px; background: var(--divider-line); margin: 0 10px; }
 /* P13: 抽屉 emoji 标记与选择器 */
 .drawer-emoji {
   font-size: 13px; line-height: 1; cursor: pointer; border-radius: 4px; padding: 1px 2px;
@@ -206,58 +285,77 @@ body {
 .section-header.drop-target { background: var(--primary-light); }
 .section-header.drop-target .section-title-box { color: var(--primary); }
 .section-add {
-  padding: 8px; border-radius: 8px; text-align: center;
-  font-size: 12px; color: var(--text-sub);
+  padding: 7px; border-radius: 10px; text-align: center;
+  font-size: 11.5px; color: var(--text-muted);
   border: 1px dashed var(--border-color); cursor: pointer; transition: all .15s ease;
 }
 .section-add:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-light); }
 
-/* File grid（组内自适应列：默认 6 列，150% 缩放 4 列；紧凑间距） */
-.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 6px; }
+/* File grid（96px 一格 + 6px 间距：150% 缩放下仍保 4 列，正常缩放更密） */
+.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
 .file-card {
   display: flex; flex-direction: column; align-items: center;
-  padding: 8px 3px 6px 3px; border-radius: 10px; background: var(--bg-card);
+  padding: 8px 4px 7px 4px; border-radius: 12px; background: var(--card-bg);
   border: 1px solid transparent; cursor: pointer; position: relative;
   transition: all .18s cubic-bezier(.16,1,.3,1);
   min-width: 0;
 }
-.file-card:hover { background: var(--bg-hover); border-color: var(--border-color); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,.05); }
+.file-card:hover {
+  background: var(--card-bg-hover); border-color: var(--border-subtle); z-index: 2;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15,30,18,.08), inset 0 1px 0 rgba(255,255,255,.9);
+}
 .file-card.selected { background: var(--primary-light); border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 /* P12: 过期灰显（仅视觉标记） */
 .file-card.stale { opacity: .48; filter: grayscale(.75); }
 
 /* P10: 置顶星标（卡片右上角；未置顶悬停浮现） */
 .pin-star {
-  position: absolute; top: 3px; right: 3px; z-index: 2;
-  width: 20px; height: 20px; border-radius: 50%; border: none; padding: 0;
-  background: rgba(255,255,255,.78); color: var(--text-muted);
-  font-size: 12px; line-height: 1; cursor: pointer;
+  position: absolute; top: 3px; right: 5px; z-index: 3;
+  width: 19px; height: 19px; border-radius: 50%; border: none; padding: 0;
+  background: rgba(255,255,255,.92); color: var(--text-muted);
+  font-size: 11px; line-height: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity .15s ease;
+  box-shadow: 0 2px 6px rgba(15,30,18,.12);
 }
 .file-card:hover .pin-star { opacity: 1; }
-.pin-star.pinned { opacity: 1; color: var(--sticky-btn-primary); }
-.pin-star:hover { background: #fff; }
-.file-thumb-box {
-  width: 108px; height: 108px; display: flex; align-items: center; justify-content: center;
-  margin-bottom: 6px; border-radius: 8px; overflow: hidden; position: relative;
+.pin-star.pinned {
+  opacity: 1; color: var(--star-pinned); background: #fff;
+  box-shadow: 0 2px 6px rgba(217,119,6,.25);
 }
-.file-thumb-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
-.file-thumb-box video { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.pin-star:hover { background: #fff; }
+/* 64px 圆角图标位：彩色类型徽标与缩略图共用，阴影统一由容器提供 */
+.file-thumb-box {
+  width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 6px; border-radius: 14px; overflow: hidden; position: relative;
+  box-shadow: 0 3px 9px rgba(15,30,18,.10), 0 1px 2px rgba(15,30,18,.05);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.file-card:hover .file-thumb-box { transform: scale(1.05); box-shadow: 0 6px 14px rgba(15,30,18,.16); }
+.file-thumb-box img { width: 100%; height: 100%; object-fit: cover; }
+.file-thumb-box video { width: 100%; height: 100%; object-fit: cover; }
+/* 彩色类型徽标（渐变与文字由 app.js 按扩展名写入） */
+.type-badge {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; letter-spacing: .3px; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.20);
+}
+.type-badge.long { font-size: 11.5px; }
+.type-badge svg { width: 32px; height: 32px; }
 .video-badge {
-  position: absolute; right: 5px; bottom: 5px;
-  width: 24px; height: 24px; border-radius: 50%;
-  background: rgba(15,23,42,.60); color: #fff;
-  font-size: 11px; display: flex; align-items: center; justify-content: center;
+  position: absolute; right: 4px; bottom: 4px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(15,23,42,.72); color: #fff;
+  font-size: 9px; display: flex; align-items: center; justify-content: center;
   pointer-events: none;
 }
-.file-thumb-box .kind-icon { font-size: 68px; line-height: 1; }
 .file-title {
-  font-size: 11px; font-weight: 500; color: var(--text-main);
-  max-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  text-align: center; line-height: 1.3;
+  font-size: 11.5px; font-weight: 600; color: var(--text-main);
+  max-width: 92px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: center; line-height: 1.35;
 }
-.file-meta { font-size: 9.5px; color: var(--text-muted); margin-top: 2px; }
+.file-meta { font-size: 9.5px; color: var(--text-muted); margin-top: 1px; font-weight: 500; }
 
 /* Note wall */
 .note-wall { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -405,12 +503,13 @@ body {
 
 /* P11: 卡片「复制 MD 链接」按钮（悬停浮现，与置顶星标并排） */
 .card-link {
-  position: absolute; top: 3px; right: 27px; z-index: 2;
-  width: 20px; height: 20px; border-radius: 50%; border: none; padding: 0;
-  background: rgba(255,255,255,.78); color: var(--text-muted);
+  position: absolute; top: 3px; right: 27px; z-index: 3;
+  width: 19px; height: 19px; border-radius: 50%; border: none; padding: 0;
+  background: rgba(255,255,255,.92); color: var(--text-muted);
   font-size: 10px; line-height: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity .15s ease;
+  box-shadow: 0 2px 6px rgba(15,30,18,.12);
 }
 .file-card:hover .card-link { opacity: 1; }
 .card-link:hover { background: #fff; color: var(--primary); }

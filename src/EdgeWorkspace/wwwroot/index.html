@@ -14,9 +14,11 @@
     <!-- 顶部 Header -->
     <div class="drawer-header">
       <div class="header-left">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
-        </svg>
+        <span class="header-leaf-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+          </svg>
+        </span>
         <span class="header-title">临时工作区</span>
         <span class="header-badge" id="totalBadge">0 项</span>
       </div>
@@ -41,12 +43,12 @@
 
     <!-- 分类 Tab 栏（v2：抽屉即文件夹，独立"文件夹"Tab 已移除；P10 过滤/排序控件） -->
     <div class="category-tab-bar" id="tabBar">
-      <div class="tab-item active" data-tab="all">全部</div>
-      <div class="tab-item" data-tab="image" title="图片">🖼️</div>
-      <div class="tab-item" data-tab="video" title="视频">🎬</div>
-      <div class="tab-item" data-tab="doc" title="文档">📄</div>
-      <div class="tab-item" data-tab="whiteboard" title="白板">📋</div>
-      <input type="search" id="filterBox" class="filter-box" placeholder="🔍 过滤文件/抽屉" title="输入即过滤（文件名或抽屉名，跨抽屉），Esc 清除" />
+      <div class="tab-item active" data-tab="all">全部<span class="tab-count" id="tabCountAll">0</span></div>
+      <div class="tab-item" data-tab="image" title="图片">🖼️<span class="tab-count" id="tabCountImage" hidden>0</span></div>
+      <div class="tab-item" data-tab="video" title="视频">🎬<span class="tab-count" id="tabCountVideo" hidden>0</span></div>
+      <div class="tab-item" data-tab="doc" title="文档">📄<span class="tab-count" id="tabCountDoc" hidden>0</span></div>
+      <div class="tab-item" data-tab="whiteboard" title="便签">📋<span class="tab-count" id="tabCountNote" hidden>0</span></div>
+      <input type="search" id="filterBox" class="filter-box" placeholder="过滤文件/抽屉" title="输入即过滤（文件名或抽屉名，跨抽屉），Esc 清除" />
       <select id="sortBox" class="sort-box" title="排序（置顶恒优先）">
         <option value="time">时间排序</option>
         <option value="name">名称排序</option>
@@ -78,8 +80,9 @@
             </div>
             <select class="settings-select" id="setTheme">
               <option value="white">亮色</option>
-              <option value="eye">护眼绿</option>
               <option value="acrylic">毛玻璃</option>
+              <option value="eye">🌿 护眼草绿</option>
+              <option value="eye-glass">🌿 护眼草绿 · 毛玻璃</option>
             </select>
           </div>
         </div>

@@ -146,6 +146,19 @@ function updateBadges() {
     ? allItems.length
     : allItems.filter(it => matchesTab(it, currentTab)).length;
   document.getElementById('totalBadge').textContent = n + ' 项';
+  // Tab 各自计数（空类别隐藏徽标，避免一排 0 的噪声）
+  const counts = {
+    tabCountAll: allItems.length,
+    tabCountImage: allItems.filter(it => matchesTab(it, 'image')).length,
+    tabCountVideo: allItems.filter(it => matchesTab(it, 'video')).length,
+    tabCountDoc: allItems.filter(it => matchesTab(it, 'doc')).length,
+    tabCountNote: allNotes.length,
+  };
+  for (const [id, c] of Object.entries(counts)) {
+    const el = document.getElementById(id);
+    el.textContent = c;
+    el.hidden = c === 0;
+  }
 }
 
 // ---------- Header buttons ----------
@@ -226,10 +239,51 @@ function bindSelectBar() {
 }
 
 // ---------- 文件渲染 ----------
-const KIND_ICON = {
-  folder: '📁', doc: '📄', image: '🖼️', video: '🎬',
-  audio: '🎵', archive: '🗜️', app: '⚙️', other: '📄',
+// 类型徽标：渐变圆角块 + 扩展名缩写（取代不辨类型的巨型 emoji，配色参考视觉方案 Demo）
+const BADGE_GRAD = {
+  word: ['#60a5fa', '#1d4ed8'], excel: ['#34d399', '#059669'], ppt: ['#fb923c', '#ea580c'],
+  pdf: ['#fb7185', '#e11d48'], md: ['#a78bfa', '#6d28d9'], code: ['#38bdf8', '#0369a1'],
+  data: ['#facc15', '#ca8a04'], archive: ['#fbbf24', '#d97706'], audio: ['#f472b6', '#be185d'],
+  app: ['#64748b', '#1e293b'], design: ['#c084fc', '#7c3aed'], image: ['#2dd4bf', '#0d9488'],
+  video: ['#22d3ee', '#0891b2'], text: ['#94a3b8', '#475569'], other: ['#a8b3a9', '#5f6f61'],
+  folder: ['#fcd34d', '#f59e0b'],
 };
+const EXT_GROUP = {};
+for (const [group, exts] of Object.entries({
+  word: 'doc docx rtf odt wps',
+  excel: 'xls xlsx csv ods et',
+  ppt: 'ppt pptx odp dps',
+  pdf: 'pdf',
+  md: 'md markdown',
+  code: 'js mjs ts tsx jsx vue py cs java cpp c h go rs php rb lua sh ps1 bat cmd vbs sql html htm css scss',
+  data: 'json xml yml yaml toml ini cfg conf',
+  archive: 'zip rar 7z tar gz bz2 xz',
+  audio: 'mp3 wav flac aac ogg m4a wma',
+  app: 'exe msi dll appx lnk',
+  design: 'psd ai fig sketch xd cdr',
+  text: 'txt log nfo',
+})) for (const e of exts.split(' ')) EXT_GROUP[e] = group;
+// 扩展名不在表内时按 C# 给的大类兜底
+const KIND_GROUP = { doc: 'text', image: 'image', video: 'video', audio: 'audio', archive: 'archive', app: 'app', folder: 'folder', other: 'other' };
+const LABEL_FIX = { docx: 'DOC', xlsx: 'XLS', pptx: 'PPT', markdown: 'MD', jpeg: 'JPG', tiff: 'TIF' };
+const extOf = name => (/\.([^.\\/]+)$/.exec(name) || ['', ''])[1].toLowerCase();
+
+function buildTypeBadge(it) {
+  const el = document.createElement('div');
+  el.className = 'type-badge';
+  const ext = (it.ext || extOf(it.name)).toLowerCase();   // C# 已带 ext；无则从文件名兜底
+  const isFolder = it.isFolder || it.kind === 'folder';
+  const [from, to] = BADGE_GRAD[isFolder ? 'folder' : (EXT_GROUP[ext] || KIND_GROUP[it.kind] || 'other')];
+  el.style.background = 'linear-gradient(135deg,' + from + ',' + to + ')';
+  if (isFolder) {
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>';
+    return el;
+  }
+  const label = LABEL_FIX[ext] || (ext ? ext.toUpperCase().slice(0, 4) : 'FILE');
+  if (label.length > 3) el.classList.add('long');
+  el.textContent = label;
+  return el;
+}
 
 function fmtSize(bytes) {
   if (bytes <= 0) return '';
@@ -700,7 +754,7 @@ function buildFileCard(it) {
     img.alt = it.name;
     img.loading = 'lazy';
     img.addEventListener('error', () => {
-      thumb.innerHTML = '<span class="kind-icon">🖼️</span>'; // heic/psd 等浏览器不认的
+      thumb.replaceChildren(buildTypeBadge(it));   // heic/psd 等浏览器不认的
     });
     thumb.append(img);
   } else if (it.kind === 'video') {
@@ -709,14 +763,14 @@ function buildFileCard(it) {
     v.preload = 'metadata';
     v.muted = true;
     v.addEventListener('error', () => {
-      thumb.innerHTML = '<span class="kind-icon">🎬</span>'; // 解码不了的容器/编码
+      thumb.replaceChildren(buildTypeBadge(it));   // 解码不了的容器/编码
     });
     const play = document.createElement('span');
     play.className = 'video-badge';
     play.textContent = '▶';
     thumb.append(v, play);
   } else {
-    thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
+    thumb.append(buildTypeBadge(it));
   }
 
   const title = document.createElement('div');
