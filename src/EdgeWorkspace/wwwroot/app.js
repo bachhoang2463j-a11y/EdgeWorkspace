@@ -275,25 +275,22 @@ function buildSection(drawer, items, subs) {
   titleBox.className = 'section-title-box';
   titleBox.innerHTML =
     '<svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-  // P10：拖动排序把手（仅视图顺序；与点击折叠/改名/右键互不冲突）
+  // P10：拖动排序把手（箭头之前，负边距藏进横栏左内边距，悬停浮现）。
+  // 不能用 HTML5 DnD：我们注册在 Chromium 窗口上的 OLE 放置目标会拦截并拒绝
+  // Chromium 内部拖放（非 CF_HDROP -> 禁止光标），故走 pointer 手动拖拽。
   if (drawer !== null) {
     const grip = document.createElement('span');
     grip.className = 'section-grip';
     grip.textContent = '⠿';
     grip.title = '拖动排序（同级）';
-    grip.draggable = true;
-    grip.addEventListener('dragstart', e => {
-      dragDrawer = drawer;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', drawer);
-      group.classList.add('dragging');
+    titleBox.prepend(grip);
+    grip.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();   // 阻止原生拖拽/选择
+      grip.setPointerCapture(e.pointerId);
+      startDrawerDrag(drawer, group, grip);
     });
-    grip.addEventListener('dragend', () => {
-      dragDrawer = null;
-      document.querySelectorAll('.dragging, .drag-over-before, .drag-over-after')
-        .forEach(el => el.classList.remove('dragging', 'drag-over-before', 'drag-over-after'));
-    });
-    titleBox.append(grip);
+    grip.addEventListener('click', e => e.stopPropagation());   // 纯点击不折叠
   }
   const label = document.createElement('span');
   label.textContent = drawer === null ? '未分类'
@@ -327,29 +324,6 @@ function buildSection(drawer, items, subs) {
     });
   }
 
-  // P10：同级拖放排序（横栏为落点，上/下半决定插前/插后）
-  if (drawer !== null) {
-    const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
-    header.addEventListener('dragover', e => {
-      if (!dragDrawer || dragDrawer === drawer || parentOf(dragDrawer) !== parentOf(drawer)) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const r = header.getBoundingClientRect();
-      const before = e.clientY < r.top + r.height / 2;
-      header.classList.remove('drag-over-before', 'drag-over-after');
-      header.classList.add(before ? 'drag-over-before' : 'drag-over-after');
-    });
-    header.addEventListener('dragleave', () => header.classList.remove('drag-over-before', 'drag-over-after'));
-    header.addEventListener('drop', e => {
-      e.preventDefault();
-      const before = header.classList.contains('drag-over-before');
-      header.classList.remove('drag-over-before', 'drag-over-after');
-      if (!dragDrawer || dragDrawer === drawer) return;
-      reorderDrawer(dragDrawer, drawer, before);
-      dragDrawer = null;
-    });
-  }
-
   // 体：次级抽屉在前（资源管理器习惯），随后本组文件网格；折叠时整体隐藏
   const body = document.createElement('div');
   body.className = 'section-body';
@@ -363,8 +337,48 @@ function buildSection(drawer, items, subs) {
   return group;
 }
 
-// 抽屉手动排序：同级拖放插入。重排全量序（未列者保持名序尾随），落 config 即时生效。
-let dragDrawer = null;
+// 抽屉手动排序：pointer 拖拽（把手 capture），同级横栏上/下半插前/插后。
+// 重排全量序（未列者保持名序尾随），落 config 即时生效。
+function startDrawerDrag(drawer, groupEl, grip) {
+  const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+  let moved = false;
+
+  const clearMarks = () => document.querySelectorAll('.drag-over-before, .drag-over-after')
+    .forEach(el => el.classList.remove('drag-over-before', 'drag-over-after'));
+
+  const onMove = ev => {
+    if (!moved) {
+      moved = true;
+      groupEl.classList.add('dragging');
+      document.body.style.cursor = 'grabbing';
+    }
+    clearMarks();
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const sec = el instanceof Element ? el.closest('.section-group') : null;
+    const target = sec ? sec.dataset.drawer : '';
+    if (!target || target === drawer || parentOf(target) !== parentOf(drawer)) return;
+    const h = sec.querySelector('.section-header');
+    const r = h.getBoundingClientRect();
+    h.classList.add(ev.clientY < r.top + r.height / 2 ? 'drag-over-before' : 'drag-over-after');
+  };
+
+  const finish = () => {
+    grip.removeEventListener('pointermove', onMove);
+    grip.removeEventListener('pointerup', finish);
+    grip.removeEventListener('pointercancel', finish);
+    const marked = document.querySelector('.drag-over-before, .drag-over-after');
+    const before = marked ? marked.classList.contains('drag-over-before') : false;
+    const target = marked ? marked.closest('.section-group').dataset.drawer : null;
+    clearMarks();
+    groupEl.classList.remove('dragging');
+    document.body.style.cursor = '';
+    if (moved && target) reorderDrawer(drawer, target, before);
+  };
+
+  grip.addEventListener('pointermove', onMove);
+  grip.addEventListener('pointerup', finish);
+  grip.addEventListener('pointercancel', finish);
+}
 
 function reorderDrawer(src, target, before) {
   const idx = new Map(drawerOrder.map((p, i) => [p, i]));

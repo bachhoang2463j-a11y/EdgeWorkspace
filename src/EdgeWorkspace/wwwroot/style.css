@@ -125,11 +125,12 @@ body {
 .section-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .section-count { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 .section-divider-line { flex: 1; height: 1px; background: var(--border-color); margin: 0 10px; }
-/* P10: 抽屉拖动排序把手（悬停浮现）与插入指示 */
+/* P10: 抽屉拖动排序把手（箭头之前，负边距藏进横栏左内边距，悬停浮现）与插入指示 */
 .section-grip {
   cursor: grab; color: var(--text-muted); font-size: 13px; line-height: 1;
   opacity: 0; transition: opacity .15s ease; padding: 0 1px;
-  user-select: none;
+  margin-left: -13px;   /* 未悬停时视觉上缩进左内边距，不占标题空间 */
+  user-select: none; touch-action: none;
 }
 .section-header:hover .section-grip { opacity: .75; }
 .section-grip:active { cursor: grabbing; }
