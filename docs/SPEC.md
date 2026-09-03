@@ -96,7 +96,8 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `moveFiles` | `{files: [{name, drawer}], drawer}` | 批量移动到目标抽屉/未分类 |
 | `deleteFiles` | `{files: [{name, drawer}]}` | 批量移入回收站 |
 | `trashRestore` / `trashEmpty` | `{id}` / — | 回收站恢复 / 清空 |
-| `clipboardSave` | — | Ctrl+V 收纳：截图存 PNG / 文本存 txt |
+| `clipboardSave` / `clipboardToNote` | — | Ctrl+V 收纳：文件视图存 PNG/txt 落未分类；白板页直接建便签（文本即正文，截图存文件后以 files.local 图片链接入便签） |
+| `noteCopy` | `{content}` | 便签窗口「复制」按钮：整篇写入剪贴板 |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
 | `noteRename` | `{id, title}` | 改名（写 index.json + Touch + 重推） |
 | `noteOpen` | `{id}` | 打开/聚焦该便签的独立窗口 |
@@ -113,6 +114,7 @@ C# → JS（`PostWebMessageAsJson`）：
 | `dragHover` | `{x, y}` | 拖放悬停坐标（CSS 像素，80ms 节流；x<0 清除高亮），前端高亮抽屉横栏 |
 | `hitTest` | `{x, y}` | 松手落点（CSS 像素），前端 elementFromPoint 命中分组后回 `hitResult` |
 | `trash` | `{items: [{id, name, drawer, deletedAt}]}` | 启动/增删/恢复/清空后推送回收站清单 |
+| `pasteDetected` | — | 面板可见期 C# 键态检测到 Ctrl+V（30ms 边沿、光标在面板内才触发，弥补唤出不抢焦点收不到键盘）；前端按当前视图分流 |
 
 ### 4.2 便签窗口页（note.html / note.js）
 

@@ -113,6 +113,9 @@ internal static class Native
     /// <summary>左键当前是否按住（OLE 拖拽期间保持为真）。</summary>
     public static bool IsMouseLeftDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 
+    /// <summary>指定虚拟键当前是否按住（面板可见期的无焦点 Ctrl+V 检测）。</summary>
+    public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
+
     /// <summary>
     /// 点下方是否可视为"桌面暴露"：桌面本身（Progman/WorkerW）、桌面图标列表，
     /// 或非交互覆盖层（任务栏/Rainmeter 等贴边小部件）都放行；

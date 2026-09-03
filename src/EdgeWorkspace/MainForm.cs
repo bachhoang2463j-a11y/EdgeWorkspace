@@ -98,7 +98,9 @@ public class MainForm : Form
             _closeDelay.Tick += (_, _) => CloseDelayTick();
             _anim.Tick += (_, _) => AnimTick();
             _dropTimeout.Tick += (_, _) => CompletePendingDrop(null);   // P9: 命中回执超时 -> 未分类
+            _pasteWatch.Tick += (_, _) => PasteWatchTick();             // P9: 面板可见期 Ctrl+V 检测
             _edgeWatch.Start();
+            _pasteWatch.Start();   // 启动即停靠可见
             Native.RegisterAppHotKey(Handle);
 
             // P4/P7: 拖入收纳走自定义 OLE 放置目标（见 ApplyFileDropTargets），
@@ -199,6 +201,7 @@ public class MainForm : Form
             Visible = true;
             Left = _parkedX;
         }
+        _pasteWatch.Start();   // 面板可见期开启 Ctrl+V 检测（P9）
         StartAnim(_parkedX, _openX, opening: true);
     }
 
@@ -229,6 +232,7 @@ public class MainForm : Form
             {
                 Visible = false;   // 滑出后完全隐藏，恢复边缘监视
                 _opening = false;
+                _pasteWatch.Stop();
                 // 收起时告诉前端重置为白板，下次贴边唤出所见即所得
             }
             else
@@ -406,6 +410,51 @@ public class MainForm : Form
             }
         }
         catch (Exception ex) { Log("clipboardSave failed: " + ex.Message); }
+    }
+
+    /// <summary>P9: 白板页 Ctrl+V —— 剪贴板直接变便签：文本即正文；截图存文件后以图片链接入便签。</summary>
+    private void SaveClipboardAsNote()
+    {
+        try
+        {
+            string content;
+            if (Clipboard.ContainsImage())
+            {
+                var name = "截图 " + DateTime.Now.ToString("MMdd HHmmss") + ".png";
+                using var img = Clipboard.GetImage();
+                img?.Save(Path.Combine(WorkspacePath, name), System.Drawing.Imaging.ImageFormat.Png);
+                content = "![截图](https://files.local/" + Uri.EscapeDataString(name) + ")";
+                PushFiles();
+            }
+            else if (Clipboard.ContainsText() && Clipboard.GetText() is { Length: > 0 } text)
+            {
+                content = text;
+            }
+            else return;
+
+            var id = NoteStore.Create();
+            NoteStore.Save(id, content);
+            PushNotes();
+        }
+        catch (Exception ex) { Log("clipboardToNote failed: " + ex.Message); }
+    }
+
+    // P9: 面板可见期的 Ctrl+V 检测（30ms 键态边沿；贴边唤出不抢焦点，键盘事件到不了
+    // WebView，只能由 C# 侧检测后经 JS 按当前视图分流）。光标在面板内才触发，
+    // 避免用户在别的窗口粘贴时误收纳。
+    private readonly System.Windows.Forms.Timer _pasteWatch = new() { Interval = 30 };
+    private bool _pasteWasDown;
+
+    private void PasteWatchTick()
+    {
+        const int VK_CONTROL = 0x11, VK_V = 0x56;
+        var down = Native.IsKeyDown(VK_CONTROL) && Native.IsKeyDown(VK_V);
+        if (down && !_pasteWasDown)
+        {
+            var (cx, cy) = Native.Cursor();
+            if (IsSelfAt(cx, cy)) PostToJs(new { type = "pasteDetected" });
+        }
+        _pasteWasDown = down;
     }
 
     private void PushTrash()
@@ -649,6 +698,9 @@ public class MainForm : Form
                     }
                 case "clipboardSave":
                     SaveClipboard();
+                    break;
+                case "clipboardToNote":
+                    SaveClipboardAsNote();
                     break;
                 // ---------- P5: 白板便签 ----------
                 case "noteCreate":

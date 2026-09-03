@@ -15,6 +15,13 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnEdit').addEventListener('click', enterEdit);
   document.getElementById('btnSave').addEventListener('click', save);
   document.getElementById('btnCancel').addEventListener('click', exitEdit);
+  document.getElementById('btnCopy').addEventListener('click', () => {
+    if (!note) return;
+    post('noteCopy', { content: note.content || '' });
+    const b = document.getElementById('btnCopy');
+    b.textContent = '已复制 ✓';
+    setTimeout(() => { b.textContent = '复制'; }, 1200);
+  });
   window.addEventListener('keydown', e => {
     if (!editing) return;
     if (e.key === 'Escape') exitEdit();

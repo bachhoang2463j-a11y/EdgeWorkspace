@@ -75,6 +75,9 @@ public sealed class NoteWindow : Form
                             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
                         break;
                     }
+                case "noteCopy":
+                    Clipboard.SetText(msg.RootElement.GetProperty("content").GetString() ?? "");
+                    break;
             }
         }
         catch (Exception ex)

@@ -17,11 +17,8 @@ window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
   bindButtons();
   bindSelectBar();
-  // P9: Ctrl+V 直接收纳（截图/文本），输入框内不拦截
-  window.addEventListener('keydown', e => {
-    if (e.ctrlKey && e.key === 'v' && !(e.target instanceof Element && e.target.closest('input, textarea, select')))
-      post('clipboardSave');
-  });
+  // Ctrl+V 收纳走 C# 键态检测（pasteDetected 消息）：贴边唤出不抢焦点，
+  // WebView 收不到键盘事件，必须由 C# 侧检测后回传分流。
   post('ready');
 });
 
@@ -182,20 +179,20 @@ function renderGrid() {
   frag.append(add);
 
   const trash = buildTrashSection();
-  if (trash) frag.append(trash);
+  frag.append(trash);
 
   grid.replaceChildren(frag);
   updateBadges();
 }
 
-// ---------- P9: 回收站分组（数据由 C# trash 消息推送） ----------
+// ---------- P9: 回收站分组（数据由 C# trash 消息推送，常驻显示；空时默认折叠） ----------
 let trashItems = [];
 const TRASH_KEY = '\u0000trash';   // 折叠状态键（与抽屉名空间隔离）
 
 function buildTrashSection() {
-  if (!trashItems.length) return null;
   const group = document.createElement('div');
-  group.className = 'section-group' + (collapsedDrawers.has(TRASH_KEY) ? ' collapsed' : '');
+  const collapsed = trashItems.length === 0 || collapsedDrawers.has(TRASH_KEY);
+  group.className = 'section-group' + (collapsed ? ' collapsed' : '');
   group.dataset.trash = '1';   // 落点命中：拖到回收站 = 删除
 
   const header = document.createElement('div');
@@ -407,6 +404,15 @@ bridge?.addEventListener('message', e => {
       trashItems = msg.items || [];
       if (currentTab !== 'whiteboard') renderGrid();
       break;
+    case 'pasteDetected': {
+      // 光标在面板时的 Ctrl+V（C# 键态检测，无需焦点）。输入框聚焦时不拦截正常粘贴；
+      // 白板页 = 剪贴板直接建便签，文件视图 = 存为文件。
+      const focus = document.activeElement;
+      if (focus instanceof Element && focus.closest('input, textarea, select')) break;
+      if (currentTab === 'whiteboard') post('clipboardToNote');
+      else post('clipboardSave');
+      break;
+    }
   }
 });
 
