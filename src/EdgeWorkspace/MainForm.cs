@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 
@@ -368,6 +369,33 @@ public class MainForm : Form
         {
             Log("drawerRename failed: " + ex.Message);
         }
+    }
+
+    // ---------- P11: 悬浮预览文本读取 ----------
+
+    private static Encoding? _gb;
+    private static Encoding Gb18030()
+    {
+        if (_gb is null)
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            _gb = Encoding.GetEncoding("GB18030");
+        }
+        return _gb;
+    }
+
+    /// <summary>文本解码：BOM 优先（UTF-8/UTF-16 LE/BE），否则严格 UTF-8，失败回退 GB18030
+    /// （中文 Windows 记事本默认 ANSI/GBK）。</summary>
+    private static string DecodeText(byte[] bytes)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+            return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
+            return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
+            return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
+        try { return new UTF8Encoding(false, true).GetString(bytes); }
+        catch (DecoderFallbackException) { return Gb18030().GetString(bytes); }
     }
 
     // ---------- P9: 落点命中（OLE 屏幕坐标 -> CSS 坐标 -> JS 抽屉命中 -> 回执移动） ----------
@@ -788,8 +816,23 @@ public class MainForm : Form
                     }
                 case "copyText":
                     {
-                        // P11: 预窗「复制 Markdown 链接」等通用剪贴板文本写入
+                        // P11: 卡片「复制 Markdown 链接」等通用剪贴板文本写入
                         Clipboard.SetText(msg.RootElement.GetProperty("text").GetString() ?? "");
+                        break;
+                    }
+                case "readText":
+                    {
+                        // P11: 悬浮预览读文本（编码探测：BOM -> 严格 UTF-8 -> GB18030，
+                        // 中文记事本 ANSI 文件不再乱码）；截断 128KB 防大文件
+                        var name = msg.RootElement.GetProperty("name").GetString()!;
+                        var drawer = GetDrawer(msg.RootElement);
+                        try
+                        {
+                            var bytes = File.ReadAllBytes(FullPath(drawer, name));
+                            if (bytes.Length > 128 * 1024) Array.Resize(ref bytes, 128 * 1024);
+                            PostToJs(new { type = "textPreview", name, drawer, text = DecodeText(bytes) });
+                        }
+                        catch (Exception ex) { Log("readText failed: " + ex.Message); }
                         break;
                     }
                 // ---------- P5: 白板便签 ----------

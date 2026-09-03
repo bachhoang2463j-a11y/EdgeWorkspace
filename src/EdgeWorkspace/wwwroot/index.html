@@ -82,17 +82,11 @@
       <button class="sb-btn" id="selDone">完成</button>
     </div>
 
-    <!-- P11: 悬浮预览（悬停 800ms 触发；覆盖层不拦穿透点击，仅预窗本体可交互） -->
+    <!-- P11: 悬浮预览气泡（悬停 800ms；纯展示不可交互，鼠标离开卡片即隐） -->
     <div class="preview-overlay" id="previewOverlay" hidden>
-      <div class="preview-window">
-        <div class="preview-bar">
-          <span id="previewName"></span>
-          <div class="preview-actions">
-            <button id="previewCopy" class="nw-btn">复制 MD 链接</button>
-            <button id="previewClose" class="nw-btn">✕</button>
-          </div>
-        </div>
+      <div class="preview-window" id="previewWindow">
         <div class="preview-box" id="previewBox"></div>
+        <div class="preview-name" id="previewName"></div>
       </div>
     </div>
 
