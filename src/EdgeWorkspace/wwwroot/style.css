@@ -91,7 +91,8 @@ body {
 .whiteboard-box {
   background: #fefce8; border: 1px solid #fef08a; border-radius: 12px;
   padding: 10px; display: flex; flex-direction: column; gap: 6px;
-  box-shadow: 0 2px 8px rgba(234,179,8,.08); min-height: 230px;
+  box-shadow: 0 2px 8px rgba(234,179,8,.08); height: 230px;
+  cursor: pointer;
 }
 .whiteboard-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -99,12 +100,6 @@ body {
 }
 .whiteboard-del { border: none; background: transparent; color: #b45309; cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 6px; }
 .whiteboard-del:hover { background: rgba(180,83,9,.12); }
-.whiteboard-content {
-  flex: 1; font-size: 12px; color: #713f12; line-height: 1.5;
-  outline: none; background: transparent; border: none; resize: none;
-  font-family: inherit; user-select: text;
-}
-.whiteboard-content::placeholder { color: #c0a879; }
 
 /* 新建卡 */
 .whiteboard-add {
@@ -116,7 +111,7 @@ body {
 .whiteboard-add .whiteboard-header { color: #b45309; }
 .whiteboard-add-hint { font-size: 12px; color: #c0a879; margin-top: 8px; }
 
-/* 便签标题（P5.5：点击改名） */
+/* 便签标题（点击改名） */
 .whiteboard-title {
   max-width: 70%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: pointer; border-radius: 4px; padding: 1px 4px; margin-left: -4px;
@@ -128,41 +123,84 @@ body {
   background: #fffbeb; width: 60%;
 }
 
-/* 双击便签弹出的纯文本大编辑窗（P5.5） */
-.md-overlay {
-  position: fixed; inset: 0; z-index: 100;
-  background: rgba(15,23,42,.35);
-  display: flex; align-items: center; justify-content: center;
+/* hidden 属性必须压过任何 display 规则（编辑/查看态切换依赖它） */
+[hidden] { display: none !important; }
+
+/* Markdown 渲染视图（P6：便签卡片与独立窗口共用排版） */
+.note-md { color: #713f12; user-select: text; overflow-wrap: break-word; }
+.whiteboard-box .note-md {
+  flex: 1; overflow: auto; font-size: 12px; line-height: 1.6;
 }
-.md-window {
-  width: min(560px, 86vw); height: min(480px, 78vh);
-  background: #fffbeb; border: 1px solid #fef08a; border-radius: 14px;
-  box-shadow: 0 24px 64px rgba(0,0,0,.25);
-  display: flex; flex-direction: column; overflow: hidden;
+.note-md-empty::after { content: '空便签 · 点击打开编辑'; color: #c0a879; font-size: 12px; }
+
+.note-md :is(h1,h2,h3,h4,h5,h6) { margin: 8px 0 4px; line-height: 1.35; }
+.note-md h1 { font-size: 1.35em; }
+.note-md h2 { font-size: 1.22em; }
+.note-md h3 { font-size: 1.1em; }
+.note-md h4, .note-md h5, .note-md h6 { font-size: 1em; }
+.note-md p { margin: 4px 0; }
+.note-md ul, .note-md ol { margin: 4px 0; padding-left: 1.4em; }
+.note-md li { margin: 2px 0; }
+.note-md input[type="checkbox"] { margin-right: 5px; vertical-align: -2px; }
+.note-md code {
+  font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: .92em;
+  background: rgba(133,77,14,.10); border-radius: 4px; padding: 1px 5px;
 }
-.md-titlebar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-bottom: 1px solid #fef08a;
+.note-md pre {
+  margin: 6px 0; padding: 8px 10px; border-radius: 8px;
+  background: rgba(120,53,15,.07); overflow: auto;
 }
-.md-title-input {
-  flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #854d0e;
-  border: none; outline: none; background: transparent; font-family: inherit;
+.note-md pre code { background: none; padding: 0; }
+.note-md blockquote {
+  margin: 6px 0; padding: 2px 0 2px 10px;
+  border-left: 3px solid #fde68a; color: #a16207;
 }
-.md-titlebar-actions { display: flex; gap: 6px; }
-.md-btn {
-  font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 8px;
+.note-md table { border-collapse: collapse; margin: 6px 0; }
+.note-md th, .note-md td { border: 1px solid #fde68a; padding: 3px 8px; }
+.note-md th { background: rgba(254,240,138,.35); }
+.note-md a { color: #b45309; }
+.note-md img { max-width: 100%; border-radius: 6px; }
+.note-md hr { border: none; border-top: 1px dashed #eab308; margin: 8px 0; }
+.note-md > :first-child { margin-top: 0; }
+.note-md > :last-child { margin-bottom: 0; }
+
+/* 独立便签窗口页（P6：note.html） */
+.note-win-body { background: #fffbeb; }
+.note-win { display: flex; flex-direction: column; height: 100vh; }
+.note-win-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-bottom: 1px solid #fef08a; flex-shrink: 0;
+}
+.note-win-title {
+  min-width: 0; font-size: 16px; font-weight: 700; color: #854d0e;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.note-win-mtime { font-size: 11px; color: #c0a879; white-space: nowrap; }
+.note-win-actions { margin-left: auto; display: flex; gap: 6px; }
+.nw-btn {
+  font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 8px;
   border: 1px solid #fde68a; background: #fff; color: #854d0e;
   cursor: pointer; font-family: inherit; transition: all .15s ease;
 }
-.md-btn:hover { background: #fef9c3; }
-.md-btn-primary { background: #f59e0b; border-color: #f59e0b; color: #fff; }
-.md-btn-primary:hover { background: #d97706; }
-.md-textarea {
-  flex: 1; min-height: 0; resize: none; border: none; outline: none;
-  padding: 14px 16px; font-size: 14px; line-height: 1.7; color: #713f12;
-  background: transparent; font-family: inherit; user-select: text;
+.nw-btn:hover { background: #fef9c3; }
+.nw-btn-primary { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+.nw-btn-primary:hover { background: #d97706; }
+.note-win-title-input {
+  flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: #854d0e;
+  border: 1px solid #fde68a; border-radius: 8px; padding: 4px 10px; outline: none;
+  background: #fff; font-family: inherit;
 }
-.md-textarea::placeholder { color: #c0a879; }
+.note-win-view {
+  flex: 1; overflow: auto; padding: 18px 22px;
+  font-size: 14px; line-height: 1.7;
+  width: 100%; max-width: 940px; margin: 0 auto;
+}
+.note-win-editor {
+  flex: 1; min-height: 0; resize: none; border: none; outline: none;
+  padding: 18px 22px; font-size: 14px; line-height: 1.7; color: #713f12;
+  background: #fffbeb; font-family: inherit; user-select: text;
+}
+.note-win-editor::placeholder { color: #c0a879; }
 
 /* Footer */
 .drawer-footer {

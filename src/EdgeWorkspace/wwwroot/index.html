@@ -56,20 +56,9 @@
     </div>
   </div>
 
-  <!-- 双击便签弹出的纯文本大编辑窗（P5.5） -->
-  <div class="md-overlay" id="mdOverlay" style="display:none;">
-    <div class="md-window">
-      <div class="md-titlebar">
-        <input id="mdTitle" class="md-title-input" placeholder="便签标题" />
-        <div class="md-titlebar-actions">
-          <button id="mdSave" class="md-btn md-btn-primary">保存并关闭</button>
-          <button id="mdClose" class="md-btn">取消</button>
-        </div>
-      </div>
-      <textarea id="mdEditor" class="md-textarea" placeholder="在此编辑便签内容（Ctrl+S 保存，Esc 取消）"></textarea>
-    </div>
-  </div>
-
+<script src="vendor/marked.umd.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="md.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

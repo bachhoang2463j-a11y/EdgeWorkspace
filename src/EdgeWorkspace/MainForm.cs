@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 
@@ -11,6 +12,7 @@ public class MainForm : Form
 {
     private Microsoft.Web.WebView2.WinForms.WebView2 _web = null!;
     private CoreWebView2? _core;
+    private CoreWebView2Environment? _env;   // P6: 独立便签窗口复用
     private WorkspaceWatcher? _watcher;
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 1500 };
     private readonly System.Windows.Forms.Timer _edgeWatch = new() { Interval = 100 };
@@ -27,13 +29,13 @@ public class MainForm : Form
     private int _parkedX;        // 完全滑出屏幕的 X
 
     private static readonly string WorkspacePath = "D:\\Workspace_Temp";
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    internal static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "bridge.log");
 
     private const int SlideMs = 180;
     private const int EdgeZone = 8;
 
-    private static void Log(string line) =>
+    internal static void Log(string line) =>
         File.AppendAllText(LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + line + Environment.NewLine);
 
     static MainForm() => FileOps.LogLine += Log;
@@ -61,7 +63,8 @@ public class MainForm : Form
 
             var dataDir = Path.Combine(AppContext.BaseDirectory, "WebView2Data");
             Directory.CreateDirectory(dataDir);
-            await _web.EnsureCoreWebView2Async(await CoreWebView2Environment.CreateAsync(null, dataDir));
+            _env = await CoreWebView2Environment.CreateAsync(null, dataDir); // 独立便签窗口共用（P6）
+            await _web.EnsureCoreWebView2Async(_env);
             _core = _web.CoreWebView2;
 
             var root = Path.Combine(AppContext.BaseDirectory, "wwwroot");
@@ -449,6 +452,7 @@ public class MainForm : Form
                     {
                         var id = msg.RootElement.GetProperty("id").GetString()!;
                         NoteStore.Delete(id);
+                        if (_noteWindows.TryGetValue(id, out var nw) && !nw.IsDisposed) nw.Close(); // 防删后窗口再保存复活
                         PushNotes();
                         break;
                     }
@@ -458,6 +462,20 @@ public class MainForm : Form
                         var title = msg.RootElement.GetProperty("title").GetString() ?? "";
                         NoteStore.Rename(id, title);
                         PushNotes(); // 改名要刷新墙上的标题
+                        break;
+                    }
+                case "noteOpen":
+                    {
+                        var id = msg.RootElement.GetProperty("id").GetString()!;
+                        BeginInvoke(() => OpenNoteWindow(id));
+                        break;
+                    }
+                case "openLink":
+                    {
+                        // 渲染出的链接交给系统浏览器；只放行 http(s)
+                        var url = msg.RootElement.GetProperty("url").GetString() ?? "";
+                        if (url.StartsWith("http://") || url.StartsWith("https://"))
+                            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
                         break;
                     }
             }
@@ -476,5 +494,23 @@ public class MainForm : Form
         _openX = wa.Right - width;
         Location = new Point(_openX, wa.Top);
         Size = new Size(width, wa.Height);
+    }
+
+    // ---------- P6: 独立便签窗口 ----------
+
+    private readonly Dictionary<string, NoteWindow> _noteWindows = new();
+
+    /// <summary>打开（或聚焦既有）某便签的独立窗口。</summary>
+    private void OpenNoteWindow(string id)
+    {
+        if (_noteWindows.TryGetValue(id, out var w))
+        {
+            if (w.IsDisposed) _noteWindows.Remove(id);
+            else { w.Show(); w.Activate(); return; }
+        }
+        w = new NoteWindow(id, _env!, PushNotes);
+        w.FormClosed += (_, _) => _noteWindows.Remove(id);
+        _noteWindows[id] = w;
+        w.Show();
     }
 }

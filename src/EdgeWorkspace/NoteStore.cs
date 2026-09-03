@@ -54,6 +54,18 @@ public static class NoteStore
         return list;
     }
 
+    /// <summary>取单张便签（独立窗口用）；不存在返回 null。</summary>
+    public static NoteInfo? Get(string id)
+    {
+        var p = PathFor(id);
+        if (!File.Exists(p)) return null;
+        return new NoteInfo(
+            id,
+            LoadTitles().GetValueOrDefault(id, ""),
+            File.ReadAllText(p),
+            File.GetLastWriteTime(p).ToString("yyyy-MM-dd HH:mm"));
+    }
+
     /// <summary>新建便签，返回 id。</summary>
     public static string Create()
     {

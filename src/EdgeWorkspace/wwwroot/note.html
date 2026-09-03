@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>便签</title>
+<link rel="stylesheet" href="style.css">
+<script src="vendor/marked.umd.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="md.js"></script>
+</head>
+<body class="note-win-body">
+
+  <div class="note-win">
+    <div class="note-win-header">
+      <!-- 查看态 -->
+      <span id="viewTitle" class="note-win-title"></span>
+      <span id="viewMtime" class="note-win-mtime"></span>
+      <div class="note-win-actions" id="viewActions">
+        <button id="btnEdit" class="nw-btn">编辑</button>
+      </div>
+      <!-- 编辑态 -->
+      <input id="editTitle" class="note-win-title-input" placeholder="便签标题" hidden />
+      <div class="note-win-actions" id="editActions" hidden>
+        <button id="btnSave" class="nw-btn nw-btn-primary">保存</button>
+        <button id="btnCancel" class="nw-btn">取消</button>
+      </div>
+    </div>
+    <div id="noteView" class="note-md note-win-view"></div>
+    <textarea id="noteEditor" class="note-win-editor" hidden placeholder="Markdown 源码（Ctrl+S 保存，Esc 取消）"></textarea>
+  </div>
+
+<script src="note.js"></script>
+</body>
+</html>
