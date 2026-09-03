@@ -90,8 +90,13 @@ JS → C#（`window.chrome.webview.postMessage`）：
 | `openPath` / `revealItem` | `{name, drawer}` | 系统打开 / 资源管理器定位（drawer=null 为根目录；openPath 顺带累计 openCount） |
 | `openFolder` | — | 资源管理器打开工作区 |
 | `contextMenu` | `{name, drawer}` | Shell 原生右键菜单（抽屉横栏右键 = 该文件夹的菜单） |
-| `startDragOut` | `{name, drawer}` | C# 发起 OLE 拖出（DoDragDrop） |
+| `startDragOut` | `{files: [{name, drawer}]}` | C# 发起 OLE 拖出（DoDragDrop，多文件；选择模式拖整组） |
 | `drawerCreate` | `{name}` | 新建抽屉 = 工作区新建同名文件夹 |
+| `hitResult` | `{drawer}` 或 `{trash: true}` | 落点命中回执（对 C# hitTest 的应答） |
+| `moveFiles` | `{files: [{name, drawer}], drawer}` | 批量移动到目标抽屉/未分类 |
+| `deleteFiles` | `{files: [{name, drawer}]}` | 批量移入回收站 |
+| `trashRestore` / `trashEmpty` | `{id}` / — | 回收站恢复 / 清空 |
+| `clipboardSave` | — | Ctrl+V 收纳：截图存 PNG / 文本存 txt |
 | `noteCreate` / `noteDelete` | `{id}` | 新建 / 删除便签（删时关窗防复活） |
 | `noteRename` | `{id, title}` | 改名（写 index.json + Touch + 重推） |
 | `noteOpen` | `{id}` | 打开/聚焦该便签的独立窗口 |
@@ -104,7 +109,10 @@ C# → JS（`PostWebMessageAsJson`）：
 |---|---|---|
 | `files` | `{items, total, drawers}` | 启动 / watcher / 拖入后（drawers=抽屉名清单，按名称序） |
 | `notes` | `{notes: [{id, title, content, mtime}]}` | 启动 / 增删改名后 |
-| `setTab` | `{tab}` | 唤出时切换视图（鼠标→whiteboard，拖放→all） |
+| `setTab` | `{tab}` | 唤出时切换视图（鼠标按上下半屏分流，拖放→all） |
+| `dragHover` | `{x, y}` | 拖放悬停坐标（CSS 像素，80ms 节流；x<0 清除高亮），前端高亮抽屉横栏 |
+| `hitTest` | `{x, y}` | 松手落点（CSS 像素），前端 elementFromPoint 命中分组后回 `hitResult` |
+| `trash` | `{items: [{id, name, drawer, deletedAt}]}` | 启动/增删/恢复/清空后推送回收站清单 |
 
 ### 4.2 便签窗口页（note.html / note.js）
 
@@ -150,10 +158,24 @@ C# → JS（`PostWebMessageAsJson`）：
 **方案**：`FileDropTarget` 实现 COM `IDropTarget`（DragQueryFile 读 CF_HDROP），
 由 `ApplyFileDropTargets()` 逐窗口注册到**窗体 + WebView2 全部子窗口**
 （`RegisterDragDrop`，先 `RevokeDragDrop` 防重复）；`NavigationCompleted` 后重跑
-（渲染器可能重建子窗口）。拖入悬停挂起收起并切【全部】；Drop 后逐文件
-`FileOps.MoveInto`（重名追加 " (n)"）+ 立即推送。拖离（DragLeave）解除挂起。
+（渲染器可能重建子窗口）。拖入悬停挂起收起并切【全部】；拖离（DragLeave）解除挂起。
 
-拖出（面板 → 资源管理器）：前端 dragstart 手势检测 → C# `DoDragDrop` OLE 源（不变）。
+**P9 落点命中与三种语义**：Drop 带屏幕坐标 → `ToCssPoint`（减窗体位置、除 DPI 缩放）
+→ 发 `hitTest` 给 JS → `elementFromPoint().closest('.section-group')` 命中分组 →
+回 `hitResult`（1.5s 超时按未分类兜底）。落抽屉分组 = 收纳/移动到该抽屉；落未分类
+分组或空白 = 根目录；**落回收站分组 = 删除**（仅工作区内文件）。外部拖入与面板内
+自落（startDragOut 拖回自己）统一走 `FileOps.MoveInto(owner, src, targetDir)`：
+已在目标位置跳过；同名同大小弹原生对话框（替换/保留两者/取消跳过）；同名不同大小
+自动追加 " (n)"；跨卷文件退化为复制+删除。
+
+拖出（面板 → 资源管理器）：前端 dragstart 手势检测 → C# `DoDragDrop` OLE 源，
+多文件数组（批量选择时拖整组）。
+
+**回收站**（`TrashStore`）：删除 = 移入工作区隐藏 `.ews-trash/`（存储名 `id_原名`），
+清单 `trash.json`；恢复 = 移回原抽屉（抽屉已删则回根目录，重名自动编号）；
+面板底部渲染「🗑 回收站」分组（可折叠、拖文件上去=删除、右键=清空）。
+批量删除走选择模式（头部 ☑）：点击勾选、操作条（全选/删除/移入抽屉/完成）、
+拖动整组；Ctrl+V 直接收纳剪贴板截图/文本。
 
 ### 5.5 独立便签窗口（P6）
 
@@ -186,6 +208,10 @@ C# → JS（`PostWebMessageAsJson`）：
 | archive | zip rar 7z tar gz bz2 xz iso |
 | app | exe msi bat cmd lnk dll appx |
 | other | 其余 |
+
+前端 Tab：全部 / 图片 / 视频 / 文档 / 白板（v2：抽屉即根目录子文件夹，独立「文件夹」
+Tab 已移除；抽屉内的子文件夹卡片仍为 folder kind）。
+`folder` kind 保留给抽屉内子文件夹卡片（点击打开、右键 Shell 菜单）。
 
 缩略图（P7）：C# 把工作区映射为 `files.local` 虚拟主机；图片用 `<img loading="lazy">`
 直载；视频用 `<video preload="metadata" src="...#t=1">` 显示第 1 秒帧 + ▶ 徽标；

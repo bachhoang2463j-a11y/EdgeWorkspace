@@ -28,7 +28,7 @@ public class MainForm : Form
     private bool _animOpening;
     private int _parkedX;        // 完全滑出屏幕的 X
 
-    private static readonly string WorkspacePath = "D:\\Workspace_Temp";
+    internal static readonly string WorkspacePath = "D:\\Workspace_Temp";
 
     /// <summary>文件完整路径：drawer=null 为工作区根目录，否则 工作区/抽屉/文件名。</summary>
     private static string FullPath(string? drawer, string name) =>
@@ -97,6 +97,7 @@ public class MainForm : Form
             _edgeWatch.Tick += (_, _) => EdgeWatchTick();
             _closeDelay.Tick += (_, _) => CloseDelayTick();
             _anim.Tick += (_, _) => AnimTick();
+            _dropTimeout.Tick += (_, _) => CompletePendingDrop(null);   // P9: 命中回执超时 -> 未分类
             _edgeWatch.Start();
             Native.RegisterAppHotKey(Handle);
 
@@ -269,11 +270,13 @@ public class MainForm : Form
         _core.PostWebMessageAsJson(json);
     }
 
-    /// <summary>P4: 从面板拖文件出去（OLE 源）。DoDragDrop 自带消息循环，会阻塞到松手。</summary>
-    private void StartDragOut(string fullPath)
+    /// <summary>P4/P9: 从面板拖文件出去（OLE 源，支持多文件）。DoDragDrop 自带消息循环，会阻塞到松手。
+    /// 落回自己面板时由 FileDropTarget 命中抽屉完成组内移动（见 CompletePendingDrop）。</summary>
+    private void StartDragOut(string[] paths)
     {
-        if (!File.Exists(fullPath) && !Directory.Exists(fullPath)) return;
-        var data = new DataObject(DataFormats.FileDrop, new[] { fullPath });
+        var valid = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToArray();
+        if (valid.Length == 0) return;
+        var data = new DataObject(DataFormats.FileDrop, valid);
         _dragOver = true;
         try { _web.DoDragDrop(data, DragDropEffects.Copy | DragDropEffects.Move); }
         finally
@@ -283,7 +286,7 @@ public class MainForm : Form
         }
     }
 
-    // ---------- P4/P7: 拖入收纳（自定义 OLE 放置目标，逐窗口注册） ----------
+    // ---------- P4/P7/P9: 拖入收纳（自定义 OLE 放置目标，逐窗口注册） ----------
 
     private FileDropTarget? _fileDrop;
 
@@ -294,30 +297,121 @@ public class MainForm : Form
             files =>
             {
                 _dragOver = files;   // 拖放期间挂起收起
-                Log("DragEnter: files=" + files);
                 if (files)
                 {
                     if (!Visible) BeginExpand();
                     SetFrontTab("all");   // 拖放视图：全部
                 }
             },
-            () => _dragOver = false,
-            files =>
-            {
-                _dragOver = false;
-                Log("DragDrop: " + files.Length + " 个文件");
-                foreach (var f in files)
-                {
-                    try { FileOps.MoveInto(f, WorkspacePath); }
-                    catch (Exception ex) { Log("MoveInto failed: " + f + " - " + ex.Message); }
-                }
-                _lastSignature = ComputeSignature(); // 立即失效签名，推送刷新
-                PushFiles();
-            });
+            () => { _dragOver = false; PostToJs(new { type = "dragHover", x = -1, y = -1 }); },
+            pt => OnOleDragOver(pt),
+            (files, pt) => OnOleDrop(files, pt));
         Native.SetDropTarget(Handle, _fileDrop);
         Native.SetDropTarget(_web.Handle, _fileDrop);
         foreach (var h in Native.CollectDescendants(_web.Handle))
             Native.SetDropTarget(h, _fileDrop);
+    }
+
+    // ---------- P9: 落点命中（OLE 屏幕坐标 -> CSS 坐标 -> JS 抽屉命中 -> 回执移动） ----------
+
+    private string[]? _pendingDrop;
+    private readonly System.Windows.Forms.Timer _dropTimeout = new() { Interval = 1500 };
+    private DateTime _lastHoverFwd = DateTime.MinValue;
+
+    private void PostToJs(object payload)
+    {
+        if (_core is null || !_bridgeReady) return;
+        _core.PostWebMessageAsJson(JsonSerializer.Serialize(payload, JsonOpts));
+    }
+
+    /// <summary>OLE 屏幕坐标 -> WebView CSS 像素（本机 200% 缩放下 x/2）。</summary>
+    private (int X, int Y) ToCssPoint(Native.POINTL pt)
+    {
+        var scale = DeviceDpi / 96.0;
+        return ((int)((pt.X - Left) / scale), (int)((pt.Y - Top) / scale));
+    }
+
+    private void OnOleDragOver(Native.POINTL pt)
+    {
+        if ((DateTime.UtcNow - _lastHoverFwd).TotalMilliseconds < 80) return;   // 节流
+        _lastHoverFwd = DateTime.UtcNow;
+        var (x, y) = ToCssPoint(pt);
+        PostToJs(new { type = "dragHover", x, y });
+    }
+
+    private void OnOleDrop(string[] files, Native.POINTL pt)
+    {
+        _dragOver = false;
+        var (x, y) = ToCssPoint(pt);
+        _pendingDrop = files;
+        _dropTimeout.Stop();
+        _dropTimeout.Start();   // JS 无回执时按未分类兜底
+        PostToJs(new { type = "hitTest", x, y });
+    }
+
+    /// <summary>落点命中完成：外部拖入 = 收纳到目标抽屉；自落 = 抽屉间移动（MoveInto 统一处理）。</summary>
+    private void CompletePendingDrop(string? drawer)
+    {
+        _dropTimeout.Stop();
+        if (_pendingDrop is not { } files) return;
+        _pendingDrop = null;
+        Log("Drop: " + files.Length + " 个文件 -> " + (drawer ?? "未分类"));
+        var targetDir = string.IsNullOrEmpty(drawer) ? WorkspacePath : Path.Combine(WorkspacePath, drawer);
+        foreach (var f in files)
+        {
+            try { FileOps.MoveInto(this, f, targetDir); }
+            catch (Exception ex) { Log("drop failed: " + f + " - " + ex.Message); }
+        }
+        _lastSignature = ComputeSignature();
+        PushFiles();
+    }
+
+    /// <summary>拖到回收站分组上 = 删除（仅工作区内部文件）。</summary>
+    private void CompletePendingTrash()
+    {
+        _dropTimeout.Stop();
+        if (_pendingDrop is not { } files) return;
+        _pendingDrop = null;
+        Log("Drop -> 回收站: " + files.Length + " 个文件");
+        foreach (var f in files)
+        {
+            if (!f.StartsWith(WorkspacePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                continue;   // 外部文件先收纳，不直接进回收站
+            var rel = Path.GetRelativePath(WorkspacePath, f);
+            var parts = rel.Split(Path.DirectorySeparatorChar);
+            try { TrashStore.Add(f, parts.Length > 1 ? parts[0] : null); }
+            catch (Exception ex) { Log("trash failed: " + f + " - " + ex.Message); }
+        }
+        _lastSignature = ComputeSignature();
+        PushFiles();
+        PushTrash();
+    }
+
+    /// <summary>P9: Ctrl+V 直接收纳——剪贴板截图存 PNG / 文本存 txt，落入未分类。</summary>
+    private void SaveClipboard()
+    {
+        try
+        {
+            if (Clipboard.ContainsImage())
+            {
+                using var img = Clipboard.GetImage();
+                img?.Save(Path.Combine(WorkspacePath, "截图 " + DateTime.Now.ToString("MMdd HHmmss") + ".png"),
+                    System.Drawing.Imaging.ImageFormat.Png);
+                PushFiles();
+            }
+            else if (Clipboard.ContainsText() && Clipboard.GetText() is { Length: > 0 } text)
+            {
+                File.WriteAllText(Path.Combine(WorkspacePath, "文本 " + DateTime.Now.ToString("MMdd HHmmss") + ".txt"), text);
+                PushFiles();
+            }
+        }
+        catch (Exception ex) { Log("clipboardSave failed: " + ex.Message); }
+    }
+
+    private void PushTrash()
+    {
+        if (_core is null || !_bridgeReady) return;
+        PostToJs(new { type = "trash", items = TrashStore.List() });
     }
 
     // ---------- P1: 文件列表 ----------
@@ -431,11 +525,13 @@ public class MainForm : Form
                     _lastSignature = ComputeSignature();
                     PushFiles();
                     PushNotes();
+                    PushTrash();
                     break;
                 case "refresh":
                     _lastSignature = ComputeSignature();
                     PushFiles();
                     PushNotes();
+                    PushTrash();
                     break;
                 case "setPinned":
                     {
@@ -488,12 +584,72 @@ public class MainForm : Form
                     }
                 case "startDragOut":
                     {
-                        // 前端 mousedown 拖动开始：C# 发起 OLE 拖出
-                        var name = msg.RootElement.GetProperty("name").GetString()!;
-                        var path = FullPath(GetDrawer(msg.RootElement), name);
-                        BeginInvoke(() => StartDragOut(path));
+                        // 前端拖动手势：批量选择时拖整组，否则拖单文件（P9）
+                        var paths = msg.RootElement.GetProperty("files").EnumerateArray()
+                            .Select(el => FullPath(
+                                el.TryGetProperty("drawer", out var dv) && dv.ValueKind == JsonValueKind.String ? dv.GetString() : null,
+                                el.GetProperty("name").GetString()!))
+                            .ToArray();
+                        BeginInvoke(() => StartDragOut(paths));
                         break;
                     }
+                // ---------- P9: 批量操作 / 回收站 / 剪贴板 ----------
+                case "hitResult":
+                    {
+                        if (msg.RootElement.TryGetProperty("trash", out var tv) && tv.GetBoolean())
+                            CompletePendingTrash();
+                        else
+                            CompletePendingDrop(GetDrawer(msg.RootElement));
+                        break;
+                    }
+                case "moveFiles":
+                    {
+                        var target = GetDrawer(msg.RootElement);
+                        var targetDir = string.IsNullOrEmpty(target) ? WorkspacePath : Path.Combine(WorkspacePath, target);
+                        foreach (var el in msg.RootElement.GetProperty("files").EnumerateArray())
+                        {
+                            var name = el.GetProperty("name").GetString()!;
+                            var drawer = el.TryGetProperty("drawer", out var dv) && dv.ValueKind == JsonValueKind.String ? dv.GetString() : null;
+                            try { FileOps.MoveInto(this, FullPath(drawer, name), targetDir); }
+                            catch (Exception ex) { Log("moveFiles failed: " + name + " - " + ex.Message); }
+                        }
+                        _lastSignature = ComputeSignature();
+                        PushFiles();
+                        break;
+                    }
+                case "deleteFiles":
+                    {
+                        foreach (var el in msg.RootElement.GetProperty("files").EnumerateArray())
+                        {
+                            var name = el.GetProperty("name").GetString()!;
+                            var drawer = el.TryGetProperty("drawer", out var dv) && dv.ValueKind == JsonValueKind.String ? dv.GetString() : null;
+                            try { TrashStore.Add(FullPath(drawer, name), drawer); }
+                            catch (Exception ex) { Log("deleteFiles failed: " + name + " - " + ex.Message); }
+                        }
+                        _lastSignature = ComputeSignature();
+                        PushFiles();
+                        PushTrash();
+                        break;
+                    }
+                case "trashRestore":
+                    {
+                        TrashStore.Restore(msg.RootElement.GetProperty("id").GetString()!);
+                        _lastSignature = ComputeSignature();
+                        PushFiles();
+                        PushTrash();
+                        break;
+                    }
+                case "trashEmpty":
+                    {
+                        TrashStore.Empty();
+                        _lastSignature = ComputeSignature();
+                        PushFiles();
+                        PushTrash();
+                        break;
+                    }
+                case "clipboardSave":
+                    SaveClipboard();
+                    break;
                 // ---------- P5: 白板便签 ----------
                 case "noteCreate":
                     {

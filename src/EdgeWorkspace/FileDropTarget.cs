@@ -18,13 +18,16 @@ internal sealed class FileDropTarget : Native.IDropTarget
 
     private readonly Action<bool> _onDragEnter;   // 拖入悬停（是否文件拖放）
     private readonly Action _onDragLeave;
-    private readonly Action<string[]> _onDrop;
+    private readonly Action<Native.POINTL> _onDragOver;   // 悬停坐标（屏幕像素，节流由调用方负责）
+    private readonly Action<string[], Native.POINTL> _onDrop;   // 落点文件 + 屏幕坐标
     private bool _files;
 
-    public FileDropTarget(Action<bool> onDragEnter, Action onDragLeave, Action<string[]> onDrop)
+    public FileDropTarget(Action<bool> onDragEnter, Action onDragLeave,
+        Action<Native.POINTL> onDragOver, Action<string[], Native.POINTL> onDrop)
     {
         _onDragEnter = onDragEnter;
         _onDragLeave = onDragLeave;
+        _onDragOver = onDragOver;
         _onDrop = onDrop;
     }
 
@@ -51,6 +54,7 @@ internal sealed class FileDropTarget : Native.IDropTarget
     public int DragOver(uint grfKeyState, Native.POINTL pt, ref uint pdwEffect)
     {
         pdwEffect = _files ? pdwEffect & AllowedEffects : 0;
+        if (_files) _onDragOver(pt);
         return 0;
     }
 
@@ -78,7 +82,7 @@ internal sealed class FileDropTarget : Native.IDropTarget
         {
             var files = Native.DragQueryFiles(medium.unionmember);
             pdwEffect &= AllowedEffects;
-            _onDrop(files);
+            _onDrop(files, pt);
         }
         finally
         {

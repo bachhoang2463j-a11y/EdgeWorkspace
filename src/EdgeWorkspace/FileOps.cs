@@ -23,25 +23,73 @@ public static class FileOps
             UseShellExecute = true,
         });
 
-    // ---------- 移动（拖入收纳） ----------
+    // ---------- 移动（拖入收纳 / 抽屉间移动，P9） ----------
 
-    /// <summary>移动到工作区；重名自动追加 " (n)"。返回最终文件名。</summary>
-    public static string MoveInto(string src, string workspace)
+    /// <summary>
+    /// 移动到目标目录（工作区根或抽屉文件夹）。已在目标位置则跳过；同名同大小 → owner 弹窗
+    /// （是=替换 / 否=保留两者自动编号 / 取消=跳过）；同名不同大小 → 自动追加 " (n)"。
+    /// 返回最终文件名；跳过返回 null。
+    /// </summary>
+    public static string? MoveInto(IWin32Window? owner, string src, string targetDir)
     {
-        var dest = Path.Combine(workspace, Path.GetFileName(src));
+        var name = Path.GetFileName(src);
+        if (string.Equals(Path.GetFullPath(Path.GetDirectoryName(src)!),
+                          Path.GetFullPath(targetDir), StringComparison.OrdinalIgnoreCase))
+            return name;   // 已在目标位置（自落回原抽屉等）
+
+        var dest = Path.Combine(targetDir, name);
         if (File.Exists(dest) || Directory.Exists(dest))
         {
-            var stem = Path.GetFileNameWithoutExtension(src);
-            var ext = Path.GetExtension(src);
-            for (var n = 2; ; n++)
+            var ask = owner is not null && TryGetSize(src) >= 0 && TryGetSize(src) == TryGetSize(dest);
+            if (ask)
             {
-                var candidate = Path.Combine(workspace, stem + " (" + n + ")" + ext);
-                if (!File.Exists(candidate) && !Directory.Exists(candidate)) { dest = candidate; break; }
+                var r = MessageBox.Show(owner,
+                    "「" + name + "」在目标位置已存在（大小相同，疑似重复）。\n\n" +
+                    "是 = 替换\n否 = 保留两者（自动编号）\n取消 = 跳过",
+                    "收纳去重", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (r == DialogResult.Cancel) return null;
+                if (r == DialogResult.Yes)
+                {
+                    if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                    else File.Delete(dest);
+                }
+                else dest = UniqueName(targetDir, name);
             }
+            else dest = UniqueName(targetDir, name);
         }
-        if (Directory.Exists(src)) Directory.Move(src, dest);
-        else File.Move(src, dest);
+        Move(src, dest);
         return Path.GetFileName(dest);
+    }
+
+    /// <summary>目标目录内的可用名称：原名追加 " (n)"。</summary>
+    internal static string UniqueName(string dir, string name)
+    {
+        var stem = Path.GetFileNameWithoutExtension(name);
+        var ext = Path.GetExtension(name);
+        for (var n = 2; ; n++)
+        {
+            var candidate = Path.Combine(dir, stem + " (" + n + ")" + ext);
+            if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+        }
+    }
+
+    private static long TryGetSize(string path) =>
+        File.Exists(path) ? new FileInfo(path).Length : -1;
+
+    /// <summary>移动；跨卷的文件退化为 复制+删除（目录跨卷仍抛异常，走上层日志）。</summary>
+    private static void Move(string src, string dest)
+    {
+        try
+        {
+            if (Directory.Exists(src)) Directory.Move(src, dest);
+            else File.Move(src, dest);
+        }
+        catch (IOException) when (File.Exists(src) &&
+            !string.Equals(Path.GetPathRoot(src), Path.GetPathRoot(dest), StringComparison.OrdinalIgnoreCase))
+        {
+            File.Copy(src, dest, true);
+            File.Delete(src);
+        }
     }
 
     // ---------- Shell 原生右键菜单 ----------

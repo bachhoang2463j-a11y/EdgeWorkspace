@@ -16,6 +16,12 @@ let currentTab = 'all';
 window.addEventListener('DOMContentLoaded', () => {
   bindTabs();
   bindButtons();
+  bindSelectBar();
+  // P9: Ctrl+V 直接收纳（截图/文本），输入框内不拦截
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'v' && !(e.target instanceof Element && e.target.closest('input, textarea, select')))
+      post('clipboardSave');
+  });
   post('ready');
 });
 
@@ -37,9 +43,8 @@ function setTab(tab) {
   if (!isBoard) renderGrid();
 }
 
-// Tab -> kind 匹配（口径见 SPEC §6）
+// Tab -> kind 匹配（口径见 SPEC §6；v2 抽屉即文件夹，文件夹 Tab 已移除）
 const TAB_KINDS = {
-  folder: ['folder'],
   doc: ['doc'],
   image: ['image'],
   video: ['video'],
@@ -66,6 +71,66 @@ function bindButtons() {
     const pinned = btn.classList.toggle('pinned-active');
     post('setPinned', { pinned });
   });
+  document.getElementById('btnSelect').addEventListener('click', () => setSelectMode(!selectMode));
+}
+
+// ---------- P9: 批量选择模式 ----------
+let selectMode = false;
+const selectedKeys = new Set();   // "抽屉/文件名"（未分类为 "/文件名"）
+
+function keyOf(it) { return (it.drawer ?? '') + '/' + it.name; }
+
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on) selectedKeys.clear();
+  document.getElementById('selectBar').hidden = !on;
+  document.getElementById('btnSelect').classList.toggle('pinned-active', on);
+  updateSelectBar();
+  if (currentTab !== 'whiteboard') renderGrid();
+}
+
+function selectedFiles() {
+  return allItems.filter(it => selectedKeys.has(keyOf(it)))
+    .map(it => ({ name: it.name, drawer: it.drawer ?? null }));
+}
+
+function updateSelectBar() {
+  const n = selectedKeys.size;
+  document.getElementById('selDelete').textContent = '删除' + (n ? ' (' + n + ')' : '');
+  const all = allItems.length > 0 && n >= allItems.length;
+  document.getElementById('selAll').textContent = all ? '取消全选' : '全选';
+  // 移动目标下拉：未分类 + 全部抽屉
+  const sel = document.getElementById('selTarget');
+  sel.replaceChildren(...['', ...allDrawers].map(d => {
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d === '' ? '未分类' : d;
+    return opt;
+  }));
+}
+
+function bindSelectBar() {
+  document.getElementById('selAll').addEventListener('click', () => {
+    if (selectedKeys.size >= allItems.length) selectedKeys.clear();
+    else allItems.forEach(it => selectedKeys.add(keyOf(it)));
+    updateSelectBar();
+    renderGrid();
+  });
+  document.getElementById('selDelete').addEventListener('click', () => {
+    const files = selectedFiles();
+    if (!files.length) return;
+    post('deleteFiles', { files });   // 进回收站，可恢复，无需确认
+    selectedKeys.clear();
+    updateSelectBar();
+  });
+  document.getElementById('selMove').addEventListener('click', () => {
+    const files = selectedFiles();
+    if (!files.length) return;
+    post('moveFiles', { files, drawer: document.getElementById('selTarget').value || null });
+    selectedKeys.clear();
+    updateSelectBar();
+  });
+  document.getElementById('selDone').addEventListener('click', () => setSelectMode(false));
 }
 
 // ---------- 文件渲染 ----------
@@ -116,14 +181,78 @@ function renderGrid() {
   });
   frag.append(add);
 
+  const trash = buildTrashSection();
+  if (trash) frag.append(trash);
+
   grid.replaceChildren(frag);
   updateBadges();
+}
+
+// ---------- P9: 回收站分组（数据由 C# trash 消息推送） ----------
+let trashItems = [];
+const TRASH_KEY = '\u0000trash';   // 折叠状态键（与抽屉名空间隔离）
+
+function buildTrashSection() {
+  if (!trashItems.length) return null;
+  const group = document.createElement('div');
+  group.className = 'section-group' + (collapsedDrawers.has(TRASH_KEY) ? ' collapsed' : '');
+  group.dataset.trash = '1';   // 落点命中：拖到回收站 = 删除
+
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  const titleBox = document.createElement('div');
+  titleBox.className = 'section-title-box';
+  titleBox.innerHTML =
+    '<svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+  const label = document.createElement('span');
+  label.textContent = '🗑 回收站';
+  titleBox.append(label);
+  const divider = document.createElement('div');
+  divider.className = 'section-divider-line';
+  const count = document.createElement('span');
+  count.className = 'section-count';
+  count.textContent = trashItems.length + ' 项';
+  header.append(titleBox, divider, count);
+  header.addEventListener('click', () => {
+    const collapsed = group.classList.toggle('collapsed');
+    if (collapsed) collapsedDrawers.add(TRASH_KEY); else collapsedDrawers.delete(TRASH_KEY);
+    localStorage.setItem('ews-collapsed', JSON.stringify([...collapsedDrawers]));
+  });
+  header.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (trashItems.length && confirm('清空回收站？共 ' + trashItems.length + ' 项，不可恢复。')) post('trashEmpty');
+  });
+
+  const list = document.createElement('div');
+  list.className = 'trash-list';
+  for (const t of trashItems) {
+    const row = document.createElement('div');
+    row.className = 'trash-row';
+    const name = document.createElement('span');
+    name.className = 'trash-row-name';
+    name.textContent = t.name;
+    name.title = (t.drawer ? t.drawer + '/' : '') + t.name + ' · ' + t.deletedAt + ' 删除';
+    const restore = document.createElement('button');
+    restore.className = 'trash-restore';
+    restore.textContent = '恢复';
+    restore.title = '恢复到 ' + (t.drawer || '未分类');
+    restore.addEventListener('click', e => {
+      e.stopPropagation();
+      post('trashRestore', { id: t.id });
+    });
+    row.append(name, restore);
+    list.append(row);
+  }
+
+  group.append(header, list);
+  return group;
 }
 
 function buildSection(drawer, items) {
   const key = drawer ?? '';
   const group = document.createElement('div');
   group.className = 'section-group' + (collapsedDrawers.has(key) ? ' collapsed' : '');
+  group.dataset.drawer = key;   // 落点命中（hitTest）依据；'' = 未分类
 
   const header = document.createElement('div');
   header.className = 'section-header';
@@ -207,17 +336,31 @@ function buildFileCard(it) {
 
   card.append(thumb, title, meta);
 
-  // P4 交互（v2：全部带 drawer 定位）
-  card.addEventListener('click', () => post('openPath', { name: it.name, drawer: it.drawer ?? null }));
+  // P4 交互（v2：全部带 drawer 定位）；P9 选择模式下点击 = 勾选而非打开
+  const key = keyOf(it);
+  if (selectMode && selectedKeys.has(key)) card.classList.add('selected');
+  card.addEventListener('click', () => {
+    if (selectMode) {
+      if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
+      card.classList.toggle('selected');
+      updateSelectBar();
+      return;
+    }
+    post('openPath', { name: it.name, drawer: it.drawer ?? null });
+  });
   card.addEventListener('contextmenu', e => {
     e.preventDefault();
     post('contextMenu', { name: it.name, drawer: it.drawer ?? null });
   });
-  // 拖出：HTML5 拖拽只作手势检测，实际 OLE 拖放由 C# DoDragDrop 执行
+  // 拖出：HTML5 拖拽只作手势检测，实际 OLE 拖放由 C# DoDragDrop 执行；
+  // 落回自己面板 = 抽屉间移动（P9）。选择模式下拖整组。
   card.draggable = true;
   card.addEventListener('dragstart', e => {
     e.preventDefault();
-    post('startDragOut', { name: it.name, drawer: it.drawer ?? null });
+    const files = (selectMode && selectedKeys.has(key))
+      ? selectedFiles()
+      : [{ name: it.name, drawer: it.drawer ?? null }];
+    post('startDragOut', { files });
   });
 
   return card;
@@ -240,6 +383,29 @@ bridge?.addEventListener('message', e => {
     case 'notes':
       allNotes = msg.notes || [];
       renderNoteWall();
+      break;
+    // ---------- P9: 拖放落点 ----------
+    case 'dragHover': {
+      // 悬停高亮光标下的抽屉横栏（x<0 = 拖离，清除）
+      document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+      if (msg.x >= 0) {
+        const el = document.elementFromPoint(msg.x, msg.y);
+        const sec = el instanceof Element ? el.closest('.section-group') : null;
+        sec?.querySelector('.section-header')?.classList.add('drop-target');
+      }
+      break;
+    }
+    case 'hitTest': {
+      // 落点命中哪个分组：抽屉名 / null(未分类或空白) / trash
+      const el = document.elementFromPoint(msg.x, msg.y);
+      const sec = el instanceof Element ? el.closest('.section-group') : null;
+      if (sec && sec.dataset.trash) post('hitResult', { trash: true });
+      else post('hitResult', { drawer: sec ? (sec.dataset.drawer || null) : null });
+      break;
+    }
+    case 'trash':
+      trashItems = msg.items || [];
+      if (currentTab !== 'whiteboard') renderGrid();
       break;
   }
 });
