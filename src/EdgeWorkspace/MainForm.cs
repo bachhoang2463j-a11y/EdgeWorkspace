@@ -70,6 +70,9 @@ public class MainForm : Form
             var root = Path.Combine(AppContext.BaseDirectory, "wwwroot");
             _core.SetVirtualHostNameToFolderMapping(
                 "app.local", root, CoreWebView2HostResourceAccessKind.Allow);
+            // 工作区文件直读：图片/视频缩略图（P7）
+            _core.SetVirtualHostNameToFolderMapping(
+                "files.local", WorkspacePath, CoreWebView2HostResourceAccessKind.Allow);
             _core.WebMessageReceived += OnWebMessage;
             _core.Navigate("https://app.local/index.html");
 

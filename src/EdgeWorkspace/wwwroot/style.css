@@ -74,11 +74,19 @@ body {
 }
 .file-card:hover { background: var(--bg-hover); border-color: var(--border-color); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,.05); }
 .file-thumb-box {
-  width: 54px; height: 54px; display: flex; align-items: center; justify-content: center;
-  margin-bottom: 6px; border-radius: 8px; overflow: hidden;
+  width: 108px; height: 108px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 6px; border-radius: 8px; overflow: hidden; position: relative;
 }
 .file-thumb-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
-.file-thumb-box .kind-icon { font-size: 34px; line-height: 1; }
+.file-thumb-box video { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.video-badge {
+  position: absolute; right: 5px; bottom: 5px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(15,23,42,.60); color: #fff;
+  font-size: 11px; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.file-thumb-box .kind-icon { font-size: 68px; line-height: 1; }
 .file-title {
   font-size: 11px; font-weight: 500; color: var(--text-main);
   max-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

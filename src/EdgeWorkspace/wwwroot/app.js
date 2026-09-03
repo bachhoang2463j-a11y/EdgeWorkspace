@@ -90,9 +90,34 @@ function renderGrid() {
     card.className = 'file-card';
     card.title = it.name + '\n' + it.mtime;
 
+    // P7：图片/视频直接出缩略图，读不了的格式回退图标
     const thumb = document.createElement('div');
     thumb.className = 'file-thumb-box';
-    thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
+    const fileUrl = 'https://files.local/' + encodeURIComponent(it.name);
+    if (it.kind === 'image') {
+      const img = document.createElement('img');
+      img.src = fileUrl;
+      img.alt = it.name;
+      img.loading = 'lazy';
+      img.addEventListener('error', () => {
+        thumb.innerHTML = '<span class="kind-icon">🖼️</span>'; // heic/psd 等浏览器不认的
+      });
+      thumb.append(img);
+    } else if (it.kind === 'video') {
+      const v = document.createElement('video');
+      v.src = fileUrl + '#t=1';   // 媒体片段：直接显示第 1 秒画面
+      v.preload = 'metadata';
+      v.muted = true;
+      v.addEventListener('error', () => {
+        thumb.innerHTML = '<span class="kind-icon">🎬</span>'; // 解码不了的容器/编码
+      });
+      const play = document.createElement('span');
+      play.className = 'video-badge';
+      play.textContent = '▶';
+      thumb.append(v, play);
+    } else {
+      thumb.innerHTML = '<span class="kind-icon">' + (KIND_ICON[it.kind] || '📄') + '</span>';
+    }
 
     const title = document.createElement('div');
     title.className = 'file-title';
