@@ -29,6 +29,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ---------- P12: 设置面板绑定 ----------
 function bindSettings() {
+  document.getElementById('setTheme').addEventListener('change', e =>
+    post('setConfig', { key: 'theme', value: e.target.value }));
   document.getElementById('setStaleEnabled').addEventListener('change', e =>
     post('setConfig', { key: 'staleEnabled', value: e.target.checked }));
   document.getElementById('setStaleDays').addEventListener('change', e =>
@@ -781,6 +783,11 @@ bridge?.addEventListener('message', e => {
     }
     case 'folderPicked':
       document.getElementById('setWorkspacePath').value = msg.path || '';
+      break;
+    case 'theme':
+      // P13 皮肤切换（C# 推送；CSS 变量组按 html[data-theme] 切换）
+      document.documentElement.dataset.theme = msg.theme || 'white';
+      document.getElementById('setTheme').value = msg.theme || 'white';
       break;
     case 'config': {
       // 设置项（C# ready/refresh 推送）；含折叠状态/排序模式/手动抽屉序/生命周期 -> 应用

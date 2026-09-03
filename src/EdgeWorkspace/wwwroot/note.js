@@ -37,6 +37,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 bridge?.addEventListener('message', e => {
   const msg = e.data;
+  if (msg?.type === 'theme') {
+    // P13 皮肤（与面板同步）
+    document.documentElement.dataset.theme = msg.theme || 'white';
+    return;
+  }
   if (msg?.type === 'note' && msg.note) {
     note = msg.note;
     if (!editing) renderView();

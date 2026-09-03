@@ -11,6 +11,9 @@
   --border-color: #e2e8f0;
   --border-subtle: #f8fafc;
   --bg-card: #ffffff;
+  --bg-drawer: #ffffff;    /* 抽屉（面板）主底 */
+  --overlay-bg: #ffffff;   /* 覆盖层（设置/预览/归档）底 */
+  --tab-active-bg: #ffffff;
   --bg-panel: #fafbfc;
   --bg-hover: #f1f5f9;
   /* 便签黄主题（整组替换即可换肤） */
@@ -29,17 +32,37 @@
   --sticky-quote: #a16207;
 }
 
+/* 🧊 P13: 毛玻璃（参数取自视觉方案 Demo 风格 A）。
+   真透底 = DWM 亚克力模糊桌面（C# SetWindowCompositionAttribute）+ WebView2 透明背景；
+   CSS 半透明白提供主层，卡片无框化（悬停才浮现）。 */
+html[data-theme="acrylic"] {
+  --bg-drawer: rgba(255, 255, 255, 0.68);
+  --bg-panel: rgba(255, 255, 255, 0.30);
+  --bg-card: transparent;
+  --bg-hover: rgba(255, 255, 255, 0.65);
+  --border-color: rgba(255, 255, 255, 0.60);
+  --border-subtle: rgba(255, 255, 255, 0.30);
+  --tab-active-bg: rgba(255, 255, 255, 0.90);
+  --overlay-bg: rgba(255, 255, 255, 0.92);
+  --sticky-bg: rgba(254, 252, 232, 0.88);
+  --sticky-bg-soft: rgba(255, 251, 235, 0.88);
+  --sticky-hover: rgba(254, 249, 195, 0.82);
+  --sticky-btn-bg: rgba(255, 255, 255, 0.75);
+  --sticky-accent: rgba(253, 226, 71, 0.60);
+  --sticky-border: rgba(253, 224, 71, 0.55);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
 
 html, body { height: 100%; overflow: hidden; }
 
 body {
   font-family: var(--font-main);
-  background: var(--bg-card);
+  background: var(--bg-drawer);
   color: var(--text-main);
 }
 
-.drawer { display: flex; flex-direction: column; height: 100vh; background: var(--bg-card); position: relative; }
+.drawer { display: flex; flex-direction: column; height: 100vh; background: var(--bg-drawer); position: relative; }
 
 /* Header */
 .drawer-header {
@@ -73,7 +96,7 @@ body {
 }
 .tab-item:hover { background: var(--bg-hover); color: var(--text-main); }
 .tab-item.active {
-  background: var(--bg-card); color: var(--primary);
+  background: var(--tab-active-bg); color: var(--primary);
   box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
 }
 
@@ -318,7 +341,7 @@ body {
 .preview-window {
   position: absolute; pointer-events: none;
   width: min(46%, 410px); height: min(46%, 520px);
-  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px;
+  background: var(--overlay-bg); border: 1px solid var(--border-color); border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0,0,0,.22);
   display: flex; flex-direction: column; overflow: hidden;
 }
@@ -375,7 +398,7 @@ body {
 .archive-panel {
   position: absolute; left: 0; right: 0; bottom: 32px;   /* 底栏高度 */
   height: 42%; z-index: 64;
-  background: var(--bg-card); border-top: 1px solid var(--border-color);
+  background: var(--overlay-bg); border-top: 1px solid var(--border-color);
   display: flex; flex-direction: column;
   box-shadow: 0 -8px 24px rgba(0,0,0,.10);
   animation: slideUp .18s ease;
@@ -438,7 +461,7 @@ body {
 /* 设置面板（覆盖整个抽屉；分组+行结构，P12 扩展用） */
 .settings-panel {
   position: absolute; inset: 0; z-index: 50;
-  background: var(--bg-card);
+  background: var(--overlay-bg);
   display: flex; flex-direction: column;
 }
 .settings-header {

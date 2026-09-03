@@ -102,6 +102,8 @@ public class MainForm : Form
             _core.WebMessageReceived += OnWebMessage;
             _core.Navigate("https://app.local/index.html");
 
+            ApplyTheme(ConfigStore.Current.theme);   // P13：初始化主题（webview 透底 + 亚克力）
+
             StartWatcher();
             _poll.Tick += (_, _) => PushFilesIfChanged();
             _poll.Start();
@@ -229,6 +231,7 @@ public class MainForm : Form
     {
         // 动画进行中反转方向：从当前位置取齐，不丢弃指令
         _anim.Stop();
+        UpdateAcrylic();   // P13：滑动期间关亚克力（Win10 移动冻结问题）
         _animFrom = Left; _animTo = to; _animOpening = opening;
         _animStart = DateTime.UtcNow;
         _anim.Start();
@@ -241,6 +244,7 @@ public class MainForm : Form
         {
             _anim.Stop();
             Left = _animTo;
+            UpdateAcrylic();   // P13：动画落定，恢复亚克力
             if (!_animOpening)
             {
                 Visible = false;   // 滑出后完全隐藏，恢复边缘监视
@@ -402,6 +406,40 @@ public class MainForm : Form
             return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
         try { return new UTF8Encoding(false, true).GetString(bytes); }
         catch (DecoderFallbackException) { return Gb18030().GetString(bytes); }
+    }
+
+    // ---------- P13: 主题（亮色 / 毛玻璃） ----------
+
+    private string _theme = "white";
+    private bool _acrylicOn;
+    internal string CurrentTheme => _theme;
+
+    /// <summary>应用主题：webview 透底 + Win10 亚克力 + 广播前端/便签窗口。</summary>
+    private void ApplyTheme(string theme)
+    {
+        _theme = theme == "acrylic" ? "acrylic" : "white";
+        var glass = _theme == "acrylic";
+        _web.DefaultBackgroundColor = glass ? Color.Transparent : Color.White;
+        UpdateAcrylic();
+        PostToJs(new { type = "theme", theme = _theme });
+        foreach (var w in _noteWindows.Values)
+            w.SetTheme(_theme);
+    }
+
+    /// <summary>亚克力实际生效条件：毛玻璃主题 + 面板可见 + 不在滑动动画中
+    ///（Win10 亚克力在窗口移动时会冻结，动画期间先关，落定再开）。</summary>
+    private void UpdateAcrylic()
+    {
+        var on = _theme == "acrylic" && Visible && !_anim.Enabled;
+        if (on == _acrylicOn) return;
+        _acrylicOn = on;
+        Native.SetAcrylic(Handle, on);
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        if (_acrylicOn) return;   // 亚克力激活时不铺底色，让 DWM 模糊透出
+        base.OnPaintBackground(e);
     }
 
     // ---------- P12: 工作区热切换 / 开机自启 ----------
@@ -704,6 +742,7 @@ public class MainForm : Form
                 case "ready":
                     _bridgeReady = true;
                     _lastSignature = ComputeSignature();
+                    PostToJs(new { type = "theme", theme = _theme });   // 主题先行（初始化时的推送被桥丢弃）
                     PushFiles();
                     PushNotes();
                     PostToJs(new { type = "config", config = ConfigStore.Current });
@@ -858,6 +897,11 @@ public class MainForm : Form
                             {
                                 c.autostart = msg.RootElement.GetProperty("value").GetBoolean();
                                 SetAutoStart(c.autostart);
+                            }
+                            else if (key == "theme")        // P13 皮肤切换（亮色/毛玻璃）
+                            {
+                                c.theme = msg.RootElement.GetProperty("value").GetString() ?? "white";
+                                ApplyTheme(c.theme);
                             }
                             else if (key == "workspacePath") // P12 工作区路径热切换
                             {

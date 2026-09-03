@@ -53,6 +53,7 @@ public sealed class NoteWindow : Form
             switch (msg.RootElement.GetProperty("type").GetString())
             {
                 case "ready":
+                    SetTheme(ConfigStore.Current.theme);   // P13：先于内容应用皮肤
                     SendNote();
                     break;
                 case "noteSave":
@@ -100,5 +101,32 @@ public sealed class NoteWindow : Form
     public void RefreshNote(string id)
     {
         if (id == _id && _core is not null) SendNote();
+    }
+
+    // ---------- P13: 主题 ----------
+
+    private string _theme = "white";
+    private bool _acrylicOn;
+
+    /// <summary>应用皮肤：webview 透底 + 本窗口亚克力 + 通知前端换 CSS 变量组。</summary>
+    public void SetTheme(string theme)
+    {
+        _theme = theme == "acrylic" ? "acrylic" : "white";
+        if (_core is null) return;
+        _web.DefaultBackgroundColor = _theme == "acrylic" ? Color.Transparent : Color.White;
+        var on = _theme == "acrylic";
+        if (on != _acrylicOn)
+        {
+            _acrylicOn = on;
+            Native.SetAcrylic(Handle, on);
+        }
+        var json = JsonSerializer.Serialize(new { type = "theme", theme = _theme }, MainForm.JsonOpts);
+        _core.PostWebMessageAsJson(json);
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        if (_acrylicOn) return;   // 亚克力激活时不铺底色，让 DWM 模糊透出
+        base.OnPaintBackground(e);
     }
 }

@@ -116,6 +116,54 @@ internal static class Native
     /// <summary>指定虚拟键当前是否按住（面板可见期的无焦点 Ctrl+V 检测）。</summary>
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
+    // ---------- P13: Win10 亚克力（SetWindowCompositionAttribute，未公开 API；常量已对照
+    // riverar/sample-win32-acrylicblur 权威示例核实） ----------
+
+    private enum AccentState { DISABLED = 0, ENABLE_ACRYLICBLURBEHIND = 4 }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AccentPolicy
+    {
+        public AccentState AccentState;
+        public uint AccentFlags;
+        public uint GradientColor;   // ABGR 小端：(alpha<<24)|(BGR)，必须非零
+        public uint AnimationId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowCompositionAttributeData
+    {
+        public int Attribute;        // WCA_ACCENT_POLICY = 19
+        public IntPtr Data;
+        public int SizeOfData;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
+
+    /// <summary>开关窗口亚克力模糊（Win10 1803+）。关闭时恢复普通不透明窗口。</summary>
+    public static void SetAcrylic(IntPtr hwnd, bool on)
+    {
+        var accent = new AccentPolicy
+        {
+            AccentState = on ? AccentState.ENABLE_ACRYLICBLURBEHIND : AccentState.DISABLED,
+            GradientColor = on ? 0x01FFFFFFu : 0u,   // 近透明微白 tint（非零要求）；白色主层由 CSS 提供
+        };
+        var ptr = Marshal.AllocHGlobal(Marshal.SizeOf(accent));
+        try
+        {
+            Marshal.StructureToPtr(accent, ptr, false);
+            var data = new WindowCompositionAttributeData
+            {
+                Attribute = 19,
+                Data = ptr,
+                SizeOfData = Marshal.SizeOf(accent),
+            };
+            SetWindowCompositionAttribute(hwnd, ref data);
+        }
+        finally { Marshal.FreeHGlobal(ptr); }
+    }
+
     /// <summary>
     /// 点下方是否可视为"桌面暴露"：桌面本身（Progman/WorkerW）、桌面图标列表，
     /// 或非交互覆盖层（任务栏/Rainmeter 等贴边小部件）都放行；
